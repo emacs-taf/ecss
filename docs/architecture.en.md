@@ -1,0 +1,54 @@
+# ecss Architecture
+
+[中文](architecture.zh.md)
+
+## Position
+
+`ecss` is the generic pure-computation layer that answers which rule wins and what each final property value is. It transforms consumer-provided property schemas, subjects, stylesheets, inline declarations, and a parent computed style into computed values, custom properties, active properties, provenance, and diagnostics.
+
+```text
+consumer schemas + subject adapter + stylesheet + parent style
+                              │
+                              ▼
+       selector match → candidate collection → cascade winner
+                              │
+                              ▼
+        CSS-wide/custom-property resolution → normalize/validate
+                              │
+                              ▼
+              computed style + provenance + diagnostics
+```
+
+`ecss` does not know how computed values are displayed. TP may convert final text-property contributions into retained surface patches. Ebox may interpret final Box/Flex/Grid properties as measurement, layout, and painting consequences. Ordinary callers may use `ecss` without either package.
+
+## Explicit objects instead of process-global state
+
+Each consumer creates its own `ecss-schema-set` and `ecss-stylesheet`. Two applications can use the same selector tokens, different property vocabularies, and different layer orders in one Emacs process without interference. UA, user, and author origins inside one stylesheet also keep independent layer orders. Schema registration and rule addition are explicit atomic authoring operations. Failure cannot leave a partial schema, a half-added layer, or an incorrect source order.
+
+## Subjects and adapters
+
+Simple callers use `ecss-subject` directly. Existing tree models use `ecss-subject-adapter-create` to provide type, id, classes, attributes, states, parent, and children callbacks without copying business nodes into ECSS nodes. Selector queries and stylesheets share one parser, matcher, and specificity implementation, so query matching cannot drift from rule matching.
+
+## Cascade order
+
+Candidates compare by CSS order: relevance and matching, origin plus importance, cascade layer, specificity, scope proximity, source order, and declaration order. Standard origin levels are UA normal, user normal, author normal, animation, author important, user important, UA important, and transition. Later normal layers win and unlayered normal declarations beat layered ones. Important layers reverse order. Inline author declarations retain the highest priority inside the author origin.
+
+`revert` removes the entire current origin, across normal and important declarations, before choosing again. `revert-layer` removes the entire current layer inside that origin. An invalid-at-computed-value winner never recascades to a lower candidate; it uses the inherited or initial fallback and records the invalid winner in provenance.
+
+## Value-source boundary
+
+ECSS never calls an ordinary function stored in a property and defines no reactive or computed wrapper. A caller that needs evaluation explicitly passes `:value-resolver` to `ecss-compute-style`. The resolver receives value, property, and subject. ECSS invokes it once for each selected source and never executes its result a second time. Resolver errors propagate. Because computation is pure, ECSS has no buffer or runtime state to roll back.
+
+## Custom properties
+
+Custom properties use `--name` symbols. Their raw values first pass through ordinary cascade, inherit from the parent computed style by default, and then resolve through `ecss-var`. References may occur inside lists or vectors. Missing values and cycles can use fallback at the reference site. A cycle does not destroy the whole computed style: it creates a deterministic diagnostic and makes the affected value invalid at computed-value time.
+
+## Three-package boundary
+
+```text
+ecss: selector / stylesheet / cascade / computed values
+tp:   text-property contributions / reactive runtime / diff / transaction / buffer commit
+ebox: box semantics / measurement / flex-grid layout / painting / dirty ownership
+```
+
+Ebox may consume both `ecss` and TP. `ecss` and TP remain independently usable and do not depend on each other. The `ecss` public API contains no TP object, binding, or mount; no Ebox node; and no marker, patch, or buffer mutation.

@@ -1,0 +1,151 @@
+;;; ecss-selector-tests.el --- Selector tests -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 Geekinney
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;;; Code:
+
+(require 'ert)
+(require 'ecss-selector)
+
+(defun ecss-selector-test--tree ()
+  "Return a small subject tree for selector tests."
+  (let* ((label (ecss-subject-create
+                 :type "span" :classes '("label")
+                 :attributes '(("lang" . "en-US"))))
+         (button (ecss-subject-create
+                  :type "button" :id "save" :classes '("primary" "action")
+                  :attributes '(("data-kind" . "commit")
+                                ("data-tags" . "fast safe"))
+                  :states '("hover") :children (list label)))
+         (cancel (ecss-subject-create
+                  :type "button" :id "cancel" :classes '("action")))
+         (root (ecss-subject-create
+                :type "div" :classes '("app")
+                :children (list button cancel))))
+    (list root button cancel label)))
+
+(ert-deftest ecss-selector-test-parser-matches-compounds-and-combinators ()
+  (pcase-let ((`(,_root ,button ,cancel ,label)
+               (ecss-selector-test--tree)))
+    (should (ecss-selector-match-p
+             "div.app > button#save.primary:hover > span.label" label))
+    (should (ecss-selector-match-p "div .label" label))
+    (should (ecss-selector-match-p "button + button#cancel" cancel))
+    (should (ecss-selector-match-p "button ~ button#cancel" cancel))
+    (should-not (ecss-selector-match-p "button#cancel" button))))
+
+(ert-deftest ecss-selector-test-attribute-operators-and-flags ()
+  (pcase-let ((`(,_root ,button ,_cancel ,label)
+               (ecss-selector-test--tree)))
+    (should (ecss-selector-match-p "[data-kind]" button))
+    (should (ecss-selector-match-p "[data-kind=commit]" button))
+    (should (ecss-selector-match-p "[data-tags~=safe]" button))
+    (should (ecss-selector-match-p "[lang|=en]" label))
+    (should (ecss-selector-match-p "[data-kind^=com]" button))
+    (should (ecss-selector-match-p "[data-kind$=MIT i]" button))
+    (should-not (ecss-selector-match-p "[data-kind$=MIT s]" button))
+    (should (ecss-selector-match-p "[data-kind*=omm]" button))
+    (should-not (ecss-selector-match-p "[data-kind=other]" button))))
+
+(ert-deftest ecss-selector-test-functional-pseudos-and-specificity ()
+  (pcase-let ((`(,root ,button ,_cancel ,_label)
+               (ecss-selector-test--tree)))
+    (should (ecss-selector-match-p "button:is(.primary, #other)" button))
+    (should (ecss-selector-match-p "button:not(.disabled)" button))
+    (should (ecss-selector-match-p "div:has(span.label)" root))
+    (should (equal (ecss-selector-specificity
+                    "button:is(.primary, #other)")
+                   '(1 0 1)))
+    (should (equal (ecss-selector-specificity
+                    "button:where(.primary, #other)")
+                   '(0 0 1)))))
+
+(ert-deftest ecss-selector-test-has-supports-relative-combinators ()
+  (let* ((direct (ecss-subject-create :type "button" :classes '("direct")))
+         (nested (ecss-subject-create :type "span" :classes '("nested")))
+         (wrapper (ecss-subject-create :type "section" :children (list nested)))
+         (root (ecss-subject-create
+                :type "div" :children (list direct wrapper)))
+         (adjacent (ecss-subject-create :type "button" :id "adjacent"))
+         (later (ecss-subject-create :type "button" :id "later"))
+         (_siblings (ecss-subject-create
+                     :type "row" :children (list root adjacent later))))
+    (should (ecss-selector-match-p "div:has(> button.direct)" root))
+    (should (ecss-selector-match-p "div:has(> section .nested)" root))
+    (should (ecss-selector-match-p "div:has(+ button#adjacent)" root))
+    (should (ecss-selector-match-p "div:has(~ button#later)" root))
+    (should-not (ecss-selector-match-p "div:has(> span.nested)" root))))
+
+(ert-deftest ecss-selector-test-selector-lists-use-matching-branches ()
+  (pcase-let ((`(,_root ,button ,_cancel ,_label)
+               (ecss-selector-test--tree)))
+    (let ((selector (ecss-selector-parse "#other, .primary")))
+      (should (ecss-selector-match-p selector button))
+      (should (equal (ecss--selector-matched-specificity
+                      selector button ecss-default-subject-adapter)
+                     '(0 1 0))))))
+
+(ert-deftest ecss-selector-test-structured-tokens-use-value-equality ()
+  (let ((subject (ecss-subject-create
+                  :type (copy-sequence "button")
+                  :classes (list (copy-sequence "primary"))
+                  :states (list (copy-sequence "focus")))))
+    (should (ecss-selector-match-p '(:type "button") subject))
+    (should (ecss-selector-match-p '(:class "primary") subject))
+    (should (ecss-selector-match-p '(:state "focus") subject))))
+
+(ert-deftest ecss-selector-test-caller-owned-subject-adapter ()
+  (let* ((root (vector "panel" "root" '("app") nil nil nil nil))
+         (child (vector "button" "save" '("primary")
+                        '(("role" . "submit")) '("active") root nil))
+         (adapter
+          (ecss-subject-adapter-create
+           :type (lambda (node) (aref node 0))
+           :id (lambda (node) (aref node 1))
+           :classes (lambda (node) (aref node 2))
+           :attributes (lambda (node) (aref node 3))
+           :states (lambda (node) (aref node 4))
+           :parent (lambda (node) (aref node 5))
+           :children (lambda (node) (aref node 6)))))
+    (aset root 6 (list child))
+    (should (ecss-selector-match-p
+             "panel.app > button#save[role=submit]:active" child adapter))
+    (should (ecss-selector-match-p
+             "panel:has(button.primary)" root adapter))))
+
+(ert-deftest ecss-selector-test-invalid-input-is-rejected ()
+  (should-error (ecss-selector-parse "") :type 'ecss-invalid-selector)
+  (should-error (ecss-selector-parse "div >") :type 'ecss-invalid-selector)
+  (should-error (ecss-selector-parse "[name=value q]")
+                :type 'ecss-invalid-selector)
+  (should-error (ecss-selector-normalize '(:unknown value))
+                :type 'ecss-invalid-selector))
+
+(ert-deftest ecss-selector-test-comments-escapes-and-quoted-attributes ()
+  (let ((subject (ecss-subject-create
+                  :type "div" :classes '("card" "a:b")
+                  :attributes '(("title" . "Save now")))))
+    (should (ecss-selector-match-p "div/* comment */.card" subject))
+    (should (ecss-selector-match-p ".a\\:b" subject))
+    (should (ecss-selector-match-p "[title=\"Save now\"]" subject))))
+
+(ert-deftest ecss-selector-test-subject-reparenting-detaches-old-parent ()
+  (let* ((child (ecss-subject-create :type "button"))
+         (old-parent (ecss-subject-create
+                      :type "old" :children (list child)))
+         (new-parent (ecss-subject-create :type "new")))
+    (ecss-subject-set-children new-parent (list child))
+    (should (eq (ecss-subject-parent child) new-parent))
+    (should-not (memq child (ecss-subject-children old-parent)))
+    (should (memq child (ecss-subject-children new-parent)))))
+
+(ert-deftest ecss-selector-test-subject-parent-construction-is-bidirectional ()
+  (let* ((parent (ecss-subject-create :type "panel"))
+         (child (ecss-subject-create :type "button" :parent parent)))
+    (should (eq (ecss-subject-parent child) parent))
+    (should (equal (ecss-subject-children parent) (list child)))
+    (should (ecss-selector-match-p "panel:has(> button)" parent))))
+
+(provide 'ecss-selector-tests)
+;;; ecss-selector-tests.el ends here
