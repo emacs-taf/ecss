@@ -9,8 +9,9 @@
 - `(ecss-schema-set-property SCHEMAS ID)` 返回 defensive schema copy。
 - `(ecss-schema-set-property-ids SCHEMAS)` 返回稳定注册顺序。
 - `(ecss-expand-declarations SCHEMAS DECLARATIONS)` 校验属性并只展开一次 shorthand。
+- `(ecss-merge-declarations SCHEMAS &rest DECLARATION-GROUPS)` 按从左到右的优先级展开并合并多组声明；后组覆盖相同 longhand，显式 nil 不会被当作缺省。
 
-Property ID 必须是包含 `/` 的 symbol，例如 `ebox/color`。Custom property 不需要 schema，使用 `--name` symbol。`initial` 在 schema 注册时规范化并校验一次；已计算的 initial/inherited value 不会再次执行 normalizer。
+Property ID 必须是包含 `/` 的 symbol，例如 `demo/color`。Custom property 不需要 schema，使用 `--name` symbol。`initial` 在 schema 注册时规范化并校验一次；已计算的 initial/inherited value 不会再次执行 normalizer。
 
 ## Subject 与 selector
 

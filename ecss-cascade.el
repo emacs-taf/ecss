@@ -268,6 +268,19 @@
   (cl-loop for (property value) on declarations by #'cddr
            append (ecss--expand-declaration schemas property value)))
 
+;;;###autoload
+(defun ecss-merge-declarations (schemas &rest declaration-groups)
+  "Merge DECLARATION-GROUPS into canonical longhands using SCHEMAS.
+Groups are applied from left to right.  Later values replace earlier values for
+the same expanded longhand, including explicit nil declarations."
+  (ecss--schema-set-check schemas)
+  (let (result)
+    (dolist (declarations declaration-groups result)
+      (cl-loop for (property value)
+               on (ecss-expand-declarations schemas declarations) by #'cddr
+               do (setq result
+                        (plist-put result property (copy-tree value)))))))
+
 (defun ecss-stylesheet-create ()
   "Create an empty independent stylesheet."
   (ecss--make-stylesheet :rules nil :layers nil :source-order 0))

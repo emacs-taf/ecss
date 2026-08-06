@@ -9,8 +9,9 @@
 - `(ecss-schema-set-property SCHEMAS ID)` returns a defensive schema copy.
 - `(ecss-schema-set-property-ids SCHEMAS)` returns stable registration order.
 - `(ecss-expand-declarations SCHEMAS DECLARATIONS)` validates properties and expands each shorthand once.
+- `(ecss-merge-declarations SCHEMAS &rest DECLARATION-GROUPS)` expands and merges groups from left to right. Later groups replace the same longhand, while explicit nil remains a declaration.
 
-A property ID is a symbol containing `/`, such as `ebox/color`. Custom properties need no schema and use `--name` symbols. `initial` is normalized and validated once at schema registration; already computed initial and inherited values do not run the normalizer again.
+A property ID is a symbol containing `/`, such as `demo/color`. Custom properties need no schema and use `--name` symbols. `initial` is normalized and validated once at schema registration; already computed initial and inherited values do not run the normalizer again.
 
 ## Subjects and selectors
 

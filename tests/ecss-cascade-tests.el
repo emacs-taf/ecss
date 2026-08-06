@@ -89,6 +89,18 @@
              do (should (ecss--important-p value))
              do (should (= (ecss--important-value value) 3)))))
 
+(ert-deftest ecss-cascade-test-merge-declarations-compacts-expanded-longhands ()
+  "Later declaration groups should replace expanded longhands without loss."
+  (let ((schemas (ecss-cascade-test--schemas)))
+    (should
+     (equal
+      (ecss-merge-declarations
+       schemas
+       '(app/padding 1 app/color "blue")
+       '(app/padding-left 4 app/color nil))
+      '(app/padding-top 1 app/padding-right 1
+        app/padding-bottom 1 app/padding-left 4 app/color nil)))))
+
 (ert-deftest ecss-cascade-test-shorthand-and-longhand-follow-declaration-order ()
   (let ((schemas (ecss-cascade-test--schemas))
         (subject (ecss-cascade-test--subject)))
