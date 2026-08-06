@@ -44,6 +44,23 @@
 (defvar ecss--selector-anchor nil
   "Dynamically bound subject anchoring a relative selector.")
 
+(defun ecss--copy-boundary-data (value)
+  "Return a detached copy of mutable caller boundary VALUE.
+Function values retain identity so executable literals remain callable."
+  (cond
+   ((functionp value) value)
+   ((consp value)
+    (cons (ecss--copy-boundary-data (car value))
+          (ecss--copy-boundary-data (cdr value))))
+   ((stringp value) (copy-sequence value))
+   ((bool-vector-p value) (copy-sequence value))
+   ((or (vectorp value) (recordp value))
+    (let ((copy (copy-sequence value)))
+      (dotimes (index (length copy))
+        (aset copy index (ecss--copy-boundary-data (aref copy index))))
+      copy))
+   (t value)))
+
 (defun ecss--adapter-callback-p (value)
   "Return non-nil when VALUE is a valid adapter callback."
   (functionp value))
@@ -79,9 +96,11 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
   (when (and parent (not (ecss-subject-p parent)))
     (signal 'wrong-type-argument (list 'ecss-subject-p parent)))
   (let ((subject (ecss--make-subject
-                  :type type :id id :classes (copy-sequence classes)
-                  :attributes (copy-tree attributes)
-                  :states (copy-sequence states))))
+                  :type (ecss--copy-boundary-data type)
+                  :id (ecss--copy-boundary-data id)
+                  :classes (ecss--copy-boundary-data classes)
+                  :attributes (ecss--copy-boundary-data attributes)
+                  :states (ecss--copy-boundary-data states))))
     (ecss-subject-set-children subject children)
     (when parent
       (ecss-subject-set-children
@@ -464,7 +483,7 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
 (defun ecss-selector-normalize (selector)
   "Return a validated defensive AST for string or structured SELECTOR."
   (let ((ast (if (stringp selector) (ecss-selector-parse selector) selector)))
-    (copy-tree (ecss--validate-selector ast))))
+    (ecss--copy-boundary-data (ecss--validate-selector ast))))
 
 (defun ecss--subject-attribute-cell (subject adapter name)
   "Return SUBJECT attribute NAME through ADAPTER."

@@ -114,11 +114,12 @@
 
 (defun ecss--normalize-schema-initial (initial normalizer validator)
   "Normalize and validate schema INITIAL with NORMALIZER and VALIDATOR."
-  (let ((normalized (funcall normalizer (copy-tree initial))))
+  (let ((normalized
+         (funcall normalizer (ecss--copy-boundary-data initial))))
     (unless (funcall validator normalized)
       (signal 'ecss-invalid-property-schema
               (list :invalid-initial initial)))
-    normalized))
+    (ecss--copy-boundary-data normalized)))
 
 (defun ecss--build-property-schema (id options)
   "Build a validated property schema for ID from OPTIONS."
@@ -154,7 +155,8 @@
   "Return a defensive copy of SCHEMA."
   (let ((copy (copy-ecss-property-schema schema)))
     (setf (ecss-property-schema-initial copy)
-          (copy-tree (ecss-property-schema-initial schema)))
+          (ecss--copy-boundary-data
+           (ecss-property-schema-initial schema)))
     copy))
 
 (defun ecss-schema-set-property (schemas id)
@@ -166,7 +168,7 @@
 (defun ecss-schema-set-property-ids (schemas)
   "Return property identifiers from SCHEMAS in registration order."
   (ecss--schema-set-check schemas)
-  (copy-sequence (ecss--schema-set-order schemas)))
+  (ecss--copy-boundary-data (ecss--schema-set-order schemas)))
 
 (defun ecss-schema-set-clear (schemas)
   "Remove every property schema from SCHEMAS."
@@ -254,10 +256,13 @@
     (if-let ((expander (and schema
                             (ecss-property-schema-shorthand schema))))
         (pcase-let* ((`(,raw . ,important) (ecss--unwrap-important value))
-                     (expanded (funcall expander raw)))
+                     (expanded
+                      (ecss--copy-boundary-data
+                       (funcall expander
+                                (ecss--copy-boundary-data raw)))))
           (ecss--validate-expanded-longhands schemas property expanded)
           (ecss--tag-important expanded important))
-      (list property value))))
+      (list property (ecss--copy-boundary-data value)))))
 
 ;;;###autoload
 (defun ecss-expand-declarations (schemas declarations)
@@ -278,8 +283,7 @@ the same expanded longhand, including explicit nil declarations."
     (dolist (declarations declaration-groups result)
       (cl-loop for (property value)
                on (ecss-expand-declarations schemas declarations) by #'cddr
-               do (setq result
-                        (plist-put result property (copy-tree value)))))))
+               do (setq result (plist-put result property value))))))
 
 (defun ecss-stylesheet-create ()
   "Create an empty independent stylesheet."
@@ -294,9 +298,14 @@ the same expanded longhand, including explicit nil declarations."
 (defun ecss--copy-rule (rule)
   "Return a defensive copy of RULE."
   (let ((copy (copy-ecss-rule rule)))
-    (setf (ecss-rule-selector copy) (copy-tree (ecss-rule-selector rule))
-          (ecss-rule-declarations copy) (copy-tree (ecss-rule-declarations rule))
-          (ecss-rule-scope copy) (copy-tree (ecss-rule-scope rule)))
+    (setf (ecss-rule-selector copy)
+          (ecss--copy-boundary-data (ecss-rule-selector rule))
+          (ecss-rule-declarations copy)
+          (ecss--copy-boundary-data (ecss-rule-declarations rule))
+          (ecss-rule-layer copy)
+          (ecss--copy-boundary-data (ecss-rule-layer rule))
+          (ecss-rule-scope copy)
+          (ecss--copy-boundary-data (ecss-rule-scope rule)))
     copy))
 
 (defun ecss-stylesheet-rules (stylesheet)
@@ -320,7 +329,7 @@ the same expanded longhand, including explicit nil declarations."
   "Return STYLESHEET layers for ORIGIN in declared order.
 ORIGIN defaults to `author'."
   (ecss--stylesheet-check stylesheet)
-  (copy-tree
+  (ecss--copy-boundary-data
    (ecss--origin-layers
     stylesheet (ecss--validate-origin (or origin 'author)))))
 
@@ -339,12 +348,14 @@ ORIGIN defaults to `author'."
   (setq origin (ecss--validate-origin (or origin 'author)))
   (unless (and (listp layers) (cl-every (lambda (layer) layer) layers))
     (signal 'ecss-invalid-rule (list :layers layers)))
-  (let ((result (copy-tree (ecss--origin-layers stylesheet origin))))
+  (let ((result (ecss--copy-boundary-data
+                 (ecss--origin-layers stylesheet origin))))
     (dolist (layer layers)
       (unless (member layer result)
-        (setq result (append result (list (copy-tree layer))))))
+        (setq result
+              (append result (list (ecss--copy-boundary-data layer))))))
     (ecss--set-origin-layers stylesheet origin result)
-    (copy-tree result)))
+    (ecss--copy-boundary-data result)))
 
 (defun ecss--validate-origin (origin)
   "Return ORIGIN when it is a standard cascade origin."
@@ -364,7 +375,8 @@ ORIGIN defaults to `author'."
          (layers (ecss--origin-layers stylesheet origin)))
     (when (and layer (not (member layer layers)))
       (ecss--set-origin-layers
-       stylesheet origin (append layers (list (copy-tree layer))))))
+       stylesheet origin
+       (append layers (list (ecss--copy-boundary-data layer))))))
   (setf (ecss--stylesheet-source-order stylesheet)
         (ecss-rule-source-order rule)
         (ecss--stylesheet-rules stylesheet)
@@ -385,8 +397,8 @@ optional selector limiting the rule to a matching subject or ancestor."
          (expanded (ecss-expand-declarations schemas declarations))
          (source-order (1+ (ecss--stylesheet-source-order stylesheet)))
          (rule (ecss--make-rule
-                :selector selector :declarations (copy-tree expanded)
-                :origin origin :layer (copy-tree layer)
+                :selector selector :declarations expanded
+                :origin origin :layer (ecss--copy-boundary-data layer)
                 :layer-rank (ecss--prospective-layer-rank
                              stylesheet origin layer)
                 :scope scope :source-order source-order)))
@@ -417,12 +429,13 @@ optional selector limiting the rule to a matching subject or ancestor."
 SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
   (pcase-let ((`(,raw . ,important) (ecss--unwrap-important value)))
     (ecss--make-candidate
-     :property property :value raw :origin (ecss-rule-origin rule)
+     :property property :value (ecss--copy-boundary-data raw)
+     :origin (ecss-rule-origin rule)
      :important important :inline nil :layer (ecss-rule-layer rule)
      :layer-rank (ecss-rule-layer-rank rule) :specificity specificity
      :scope-distance distance :source-order (ecss-rule-source-order rule)
      :declaration-order declaration-order
-     :selector (copy-tree (ecss-rule-selector rule)))))
+     :selector (ecss--copy-boundary-data (ecss-rule-selector rule)))))
 
 (defun ecss--rule-candidates (rule subject adapter)
   "Return candidates from matching RULE for SUBJECT through ADAPTER."
@@ -447,7 +460,8 @@ SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
              collect
              (pcase-let ((`(,raw . ,important) (ecss--unwrap-important value)))
                (ecss--make-candidate
-                :property property :value raw :origin 'author
+                :property property :value (ecss--copy-boundary-data raw)
+                :origin 'author
                 :important important :inline t :layer nil :layer-rank nil
                 :specificity '(0 0 0)
                 :scope-distance most-positive-fixnum
@@ -560,7 +574,9 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
 
 (defun ecss--resolve-source (value property subject resolver)
   "Resolve VALUE for PROPERTY and SUBJECT only through explicit RESOLVER."
-  (if resolver (funcall resolver value property subject) value))
+  (if resolver
+      (ecss--copy-boundary-data (funcall resolver value property subject))
+    value))
 
 (defun ecss--parent-values (parent-style)
   "Return computed values from PARENT-STYLE."
@@ -585,8 +601,10 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
          (values (ecss--parent-values parent-style)))
     (if (and (ecss-property-schema-inherits schema)
              (plist-member values property))
-        (cons (copy-tree (plist-get values property)) 'inherit)
-      (cons (copy-tree (ecss-property-schema-initial schema)) 'initial))))
+        (cons (ecss--copy-boundary-data (plist-get values property)) 'inherit)
+      (cons (ecss--copy-boundary-data
+             (ecss-property-schema-initial schema))
+            'initial))))
 
 (defun ecss--wide-default (wide schema parent-style)
   "Resolve non-revert WIDE value for SCHEMA using PARENT-STYLE."
@@ -596,12 +614,16 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
      (let ((values (ecss--parent-values parent-style))
            (property (ecss-property-schema-id schema)))
        (if (plist-member values property)
-           (cons (copy-tree (plist-get values property)) 'inherit)
-         (cons (copy-tree (ecss-property-schema-initial schema)) 'initial))))
+           (cons (ecss--copy-boundary-data (plist-get values property))
+                 'inherit)
+         (cons (ecss--copy-boundary-data
+                (ecss-property-schema-initial schema))
+               'initial))))
     ('unset (if (ecss-property-schema-inherits schema)
                 (ecss--wide-default (ecss-wide-value 'inherit)
                                     schema parent-style)
-              (cons (copy-tree (ecss-property-schema-initial schema))
+              (cons (ecss--copy-boundary-data
+                     (ecss-property-schema-initial schema))
                     'initial)))))
 
 (defun ecss--candidate-provenance (candidate &rest extra)
@@ -609,11 +631,13 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
   (append
    (if candidate
        (list :source 'declaration
-             :selector (copy-tree (ecss--candidate-selector candidate))
+             :selector (ecss--copy-boundary-data
+                        (ecss--candidate-selector candidate))
              :origin (ecss--candidate-origin candidate)
              :important (and (ecss--candidate-important candidate) t)
              :inline (and (ecss--candidate-inline candidate) t)
-             :layer (copy-tree (ecss--candidate-layer candidate))
+             :layer (ecss--copy-boundary-data
+                     (ecss--candidate-layer candidate))
              :specificity (copy-sequence
                            (ecss--candidate-specificity candidate))
              :scope-distance (ecss--candidate-scope-distance candidate)
@@ -665,7 +689,7 @@ sources.  Retain winner facts when PROVENANCE-P is non-nil."
   (let ((table (make-hash-table :test #'eq)) provenance)
     (cl-loop for (property value) on (ecss--parent-custom-properties parent-style)
              by #'cddr
-             do (puthash property value table)
+             do (puthash property (ecss--copy-boundary-data value) table)
              when provenance-p
              do (setq provenance
                       (plist-put provenance property '(:source inherit))))
@@ -793,9 +817,10 @@ STACK detects cycles and DIAGNOSTICS records them."
   (if (eq value ecss--invalid)
       value
     (let ((normalized
-           (funcall (ecss-property-schema-normalizer schema) value)))
+           (funcall (ecss-property-schema-normalizer schema)
+                    (ecss--copy-boundary-data value))))
       (if (funcall (ecss-property-schema-validator schema) normalized)
-          normalized
+          (ecss--copy-boundary-data normalized)
         ecss--invalid))))
 
 (defun ecss--compute-candidate-value
@@ -811,7 +836,7 @@ explicit sources, and DIAGNOSTICS records variable failures."
                     source schema parent-style custom diagnostics)))
     (cons (if (eq (cdr resolved) 'declaration)
               (ecss--normalize-property-value schema (car resolved))
-            (copy-tree (car resolved)))
+            (ecss--copy-boundary-data (car resolved)))
           (cdr resolved))))
 
 (defun ecss--fallback-value (schema parent-style)
@@ -961,27 +986,29 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
 (defun ecss-computed-style-values (style)
   "Return a defensive values plist from computed STYLE."
   (ecss--computed-style-check style)
-  (copy-tree (ecss--computed-style-values style)))
+  (ecss--copy-boundary-data (ecss--computed-style-values style)))
 
 (defun ecss-computed-style-custom-properties (style)
   "Return a defensive custom property plist from computed STYLE."
   (ecss--computed-style-check style)
-  (copy-tree (ecss--computed-style-custom-properties style)))
+  (ecss--copy-boundary-data
+   (ecss--computed-style-custom-properties style)))
 
 (defun ecss-computed-style-active-properties (style)
   "Return actively supplied property identifiers from computed STYLE."
   (ecss--computed-style-check style)
-  (copy-sequence (ecss--computed-style-active-properties style)))
+  (ecss--copy-boundary-data
+   (ecss--computed-style-active-properties style)))
 
 (defun ecss-computed-style-provenance (style)
   "Return defensive winner provenance from computed STYLE."
   (ecss--computed-style-check style)
-  (copy-tree (ecss--computed-style-provenance style)))
+  (ecss--copy-boundary-data (ecss--computed-style-provenance style)))
 
 (defun ecss-computed-style-diagnostics (style)
   "Return defensive diagnostics from computed STYLE."
   (ecss--computed-style-check style)
-  (copy-tree (ecss--computed-style-diagnostics style)))
+  (ecss--copy-boundary-data (ecss--computed-style-diagnostics style)))
 
 (defun ecss-computed-style-value (style property &optional fallback)
   "Return PROPERTY from computed STYLE, or FALLBACK when absent."
