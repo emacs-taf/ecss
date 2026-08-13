@@ -4,7 +4,7 @@
 
 ## Position
 
-`ecss` is the generic pure-computation layer that answers which rule wins and what each final property value is. It transforms consumer-provided property schemas, subjects, stylesheets, inline declarations, and a parent computed style into computed values, custom properties, active properties, provenance, and diagnostics.
+`ecss` is the generic pure-computation layer that answers which rule wins and what each final property value is. It transforms consumer-provided property schemas, subjects, stylesheets, inline declarations, and a parent computed style into computed values, custom properties, active properties, specified properties, provenance, and diagnostics.
 
 ```text
 consumer schemas + subject adapter + stylesheet + parent style
@@ -16,7 +16,7 @@ consumer schemas + subject adapter + stylesheet + parent style
         CSS-wide/custom-property resolution → normalize/validate
                               │
                               ▼
-              computed style + provenance + diagnostics
+    computed style + specified properties + provenance + diagnostics
 ```
 
 `ecss` does not know how computed values are displayed. TP may convert final text-property contributions into retained surface patches. Ebox may interpret final Box/Flex/Grid properties as measurement, layout, and painting consequences. Ordinary callers may use `ecss` without either package.

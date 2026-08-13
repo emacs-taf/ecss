@@ -4,7 +4,7 @@
 
 ## 定位
 
-`ecss` 是“规则如何赢、最终属性值是什么”的通用纯计算层。它把 consumer 提供的 property schemas、subjects、stylesheets、inline declarations 与 parent computed style 转换成 computed values、custom properties、active properties、provenance 和 diagnostics。
+`ecss` 是“规则如何赢、最终属性值是什么”的通用纯计算层。它把 consumer 提供的 property schemas、subjects、stylesheets、inline declarations 与 parent computed style 转换成 computed values、custom properties、active properties、specified properties、provenance 和 diagnostics。
 
 ```text
 consumer schemas + subject adapter + stylesheet + parent style
@@ -16,7 +16,7 @@ consumer schemas + subject adapter + stylesheet + parent style
         CSS-wide/custom-property resolution → normalize/validate
                               │
                               ▼
-              computed style + provenance + diagnostics
+    computed style + specified properties + provenance + diagnostics
 ```
 
 `ecss` 不知道 computed values 最终如何显示。TP 可以把最终文本属性贡献转换成 retained surface patch；Ebox 可以把最终 Box/Flex/Grid 属性解释成 measurement、layout 与 painting 后果；普通调用者也可以完全不用 TP/Ebox。

@@ -46,8 +46,9 @@
 (cl-defstruct (ecss-computed-style
                (:constructor ecss--make-computed-style)
                (:conc-name ecss--computed-style-))
-  "Computed declarations, custom properties, provenance, and diagnostics."
-  values custom-properties active-properties provenance diagnostics)
+  "Computed declarations, custom properties, metadata, and diagnostics."
+  values custom-properties active-properties specified-properties
+  provenance diagnostics)
 
 (cl-defstruct (ecss--wide (:constructor ecss--make-wide)) kind)
 (cl-defstruct (ecss--important (:constructor ecss--make-important)) value)
@@ -429,13 +430,13 @@ optional selector limiting the rule to a matching subject or ancestor."
 SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
   (pcase-let ((`(,raw . ,important) (ecss--unwrap-important value)))
     (ecss--make-candidate
-     :property property :value (ecss--copy-boundary-data raw)
+     :property property :value raw
      :origin (ecss-rule-origin rule)
      :important important :inline nil :layer (ecss-rule-layer rule)
      :layer-rank (ecss-rule-layer-rank rule) :specificity specificity
      :scope-distance distance :source-order (ecss-rule-source-order rule)
      :declaration-order declaration-order
-     :selector (ecss--copy-boundary-data (ecss-rule-selector rule)))))
+     :selector (ecss-rule-selector rule))))
 
 (defun ecss--rule-candidates (rule subject adapter)
   "Return candidates from matching RULE for SUBJECT through ADAPTER."
@@ -460,7 +461,7 @@ SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
              collect
              (pcase-let ((`(,raw . ,important) (ecss--unwrap-important value)))
                (ecss--make-candidate
-                :property property :value (ecss--copy-boundary-data raw)
+                :property property :value raw
                 :origin 'author
                 :important important :inline t :layer nil :layer-rank nil
                 :specificity '(0 0 0)
@@ -601,10 +602,11 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
          (values (ecss--parent-values parent-style)))
     (if (and (ecss-property-schema-inherits schema)
              (plist-member values property))
-        (cons (ecss--copy-boundary-data (plist-get values property)) 'inherit)
-      (cons (ecss--copy-boundary-data
-             (ecss-property-schema-initial schema))
-            'initial))))
+        (cons (if (ecss-computed-style-p parent-style)
+                  (plist-get values property)
+                (ecss--copy-boundary-data (plist-get values property)))
+              'inherit)
+      (cons (ecss-property-schema-initial schema) 'initial))))
 
 (defun ecss--wide-default (wide schema parent-style)
   "Resolve non-revert WIDE value for SCHEMA using PARENT-STYLE."
@@ -614,17 +616,15 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
      (let ((values (ecss--parent-values parent-style))
            (property (ecss-property-schema-id schema)))
        (if (plist-member values property)
-           (cons (ecss--copy-boundary-data (plist-get values property))
+           (cons (if (ecss-computed-style-p parent-style)
+                     (plist-get values property)
+                   (ecss--copy-boundary-data (plist-get values property)))
                  'inherit)
-         (cons (ecss--copy-boundary-data
-                (ecss-property-schema-initial schema))
-               'initial))))
+         (cons (ecss-property-schema-initial schema) 'initial))))
     ('unset (if (ecss-property-schema-inherits schema)
                 (ecss--wide-default (ecss-wide-value 'inherit)
                                     schema parent-style)
-              (cons (ecss--copy-boundary-data
-                     (ecss-property-schema-initial schema))
-                    'initial)))))
+              (cons (ecss-property-schema-initial schema) 'initial)))))
 
 (defun ecss--candidate-provenance (candidate &rest extra)
   "Return public provenance for CANDIDATE followed by EXTRA facts."
@@ -800,14 +800,14 @@ STACK detects cycles and DIAGNOSTICS records them."
     (cons raw resolved)))
 
 (defun ecss--resolve-property-value
-    (value schema parent-style custom diagnostics)
+    (value schema parent-style custom-tables diagnostics)
   "Resolve VALUE for SCHEMA using PARENT-STYLE, CUSTOM, and DIAGNOSTICS."
   (cond ((and (ecss--wide-p value)
               (memq (ecss--wide-kind value) '(initial inherit unset)))
          (ecss--wide-default value schema parent-style))
         (t
          (pcase-let ((`(,raw . ,resolved)
-                      (ecss--custom-value-tables custom)))
+                      custom-tables))
            (cons (ecss--resolve-variable-value
                   value raw resolved nil diagnostics)
                  'declaration)))))
@@ -824,16 +824,13 @@ STACK detects cycles and DIAGNOSTICS records them."
         ecss--invalid))))
 
 (defun ecss--compute-candidate-value
-    (candidate schema parent-style custom subject resolver diagnostics)
+    (candidate schema source parent-style custom-tables diagnostics)
   "Resolve CANDIDATE for SCHEMA and computation context.
-PARENT-STYLE and CUSTOM supply inherited values.  SUBJECT and RESOLVER handle
-explicit sources, and DIAGNOSTICS records variable failures."
+SOURCE is the already resolved candidate value.  PARENT-STYLE and CUSTOM
+supply inherited values, and DIAGNOSTICS records variable failures."
   (let* ((property (ecss-property-schema-id schema))
-         (source (ecss--resolve-source
-                  (ecss--candidate-value candidate)
-                  property subject resolver))
          (resolved (ecss--resolve-property-value
-                    source schema parent-style custom diagnostics)))
+                    source schema parent-style custom-tables diagnostics)))
     (cons (if (eq (cdr resolved) 'declaration)
               (ecss--normalize-property-value schema (car resolved))
             (ecss--copy-boundary-data (car resolved)))
@@ -846,7 +843,7 @@ explicit sources, and DIAGNOSTICS records variable failures."
     (cons value source)))
 
 (defun ecss--resolve-property-candidates
-    (schema candidates parent-style custom subject resolver diagnostics)
+    (schema candidates parent-style custom-tables subject resolver diagnostics)
   "Resolve SCHEMA from ordered CANDIDATES.
 PARENT-STYLE and CUSTOM supply inherited values.  SUBJECT and RESOLVER handle
 explicit sources, and DIAGNOSTICS records variable failures."
@@ -867,8 +864,8 @@ explicit sources, and DIAGNOSTICS records variable failures."
                (setq winner candidate
                      resolved
                      (ecss--compute-candidate-value
-                      candidate schema parent-style custom subject
-                      (lambda (_value _property _subject) raw) diagnostics))))))
+                      candidate schema raw parent-style custom-tables
+                      diagnostics))))))
     (let* ((invalid (and winner (eq (car resolved) ecss--invalid)))
            (final (if (or (null winner) invalid)
                       (ecss--fallback-value schema parent-style)
@@ -885,29 +882,33 @@ explicit sources, and DIAGNOSTICS records variable failures."
     (list :source source :origin (if (eq source 'initial) 'ua 'inherit))))
 
 (defun ecss--compute-property-values
-    (schemas table parent-style custom subject resolver diagnostics provenance-p)
+    (schemas table parent-style custom-tables subject resolver diagnostics
+             provenance-p)
   "Compute SCHEMAS property values from TABLE and context.
-PARENT-STYLE and CUSTOM supply inherited values.  SUBJECT and RESOLVER handle
+PARENT-STYLE and CUSTOM-TABLES supply inherited values.  SUBJECT and RESOLVER handle
 explicit sources.  DIAGNOSTICS records failures; PROVENANCE-P retains facts."
-  (let (values active provenance)
+  (let (values active specified provenance)
     (dolist (property (ecss--schema-set-order schemas))
       (let ((schema (ecss--schema-for schemas property)))
         (unless (ecss-property-schema-shorthand schema)
           (pcase-let ((`(,value ,winner ,invalid ,source)
                        (ecss--resolve-property-candidates
-                        schema (gethash property table) parent-style custom
+                        schema (gethash property table) parent-style
+                        custom-tables
                         subject resolver diagnostics)))
             (setq values (plist-put values property value))
             (when (or (and winner (not invalid))
                       (and (ecss-property-schema-inherits schema)
                            (ecss--parent-property-active-p parent-style property)))
               (push property active))
+            (when winner
+              (push property specified))
             (when provenance-p
               (setq provenance
                     (plist-put provenance property
                                (ecss--property-provenance
                                 winner invalid source))))))))
-    (list values (nreverse active) provenance)))
+    (list values (nreverse active) (nreverse specified) provenance)))
 
 (defun ecss--validate-rule-declarations (schemas rule)
   "Validate canonical declarations in RULE against SCHEMAS."
@@ -967,15 +968,17 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
                        table parent-style subject value-resolver provenance))
            (custom (ecss--resolved-custom-properties
                     (car raw-facts) diagnostics)))
-      (pcase-let ((`(,values ,active ,property-facts)
+      (let ((custom-tables (ecss--custom-value-tables custom)))
+        (pcase-let ((`(,values ,active ,specified ,property-facts)
                    (ecss--compute-property-values
-                    schemas table parent-style custom subject value-resolver
+                    schemas table parent-style custom-tables subject value-resolver
                     diagnostics provenance)))
-        (ecss--make-computed-style
-         :values values :custom-properties custom :active-properties active
-         :provenance (and provenance
-                          (append (cadr raw-facts) property-facts))
-         :diagnostics (nreverse (car diagnostics)))))))
+          (ecss--make-computed-style
+           :values values :custom-properties custom :active-properties active
+           :specified-properties specified
+           :provenance (and provenance
+                            (append (cadr raw-facts) property-facts))
+           :diagnostics (nreverse (car diagnostics))))))))
 
 (defun ecss--computed-style-check (style)
   "Return STYLE or signal when it is not a computed style."
@@ -1000,6 +1003,12 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
   (ecss--copy-boundary-data
    (ecss--computed-style-active-properties style)))
 
+(defun ecss-computed-style-specified-properties (style)
+  "Return property identifiers with cascade winners from computed STYLE."
+  (ecss--computed-style-check style)
+  (ecss--copy-boundary-data
+   (ecss--computed-style-specified-properties style)))
+
 (defun ecss-computed-style-provenance (style)
   "Return defensive winner provenance from computed STYLE."
   (ecss--computed-style-check style)
@@ -1020,6 +1029,12 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
   "Return non-nil when PROPERTY is actively supplied in computed STYLE."
   (memq property
         (ecss--computed-style-active-properties
+         (ecss--computed-style-check style))))
+
+(defun ecss-computed-style-specified-p (style property)
+  "Return non-nil when PROPERTY has a cascade winner in computed STYLE."
+  (memq property
+        (ecss--computed-style-specified-properties
          (ecss--computed-style-check style))))
 
 (provide 'ecss-cascade)

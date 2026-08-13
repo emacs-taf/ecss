@@ -48,9 +48,11 @@ Do not pass both `:stylesheet` and `:rules`. `:rules` accepts the rule list retu
 - `(ecss-computed-style-values STYLE)` returns a defensive values plist.
 - `(ecss-computed-style-custom-properties STYLE)` returns a deterministic custom-property plist.
 - `(ecss-computed-style-active-properties STYLE)` returns property IDs supplied by valid declarations or active inheritance, preserving explicit nil versus absence. An invalid winner falling back to the initial value is not presented as an active declaration.
+- `(ecss-computed-style-specified-properties STYLE)` returns longhand property IDs that have cascade winners, independent of whether provenance was requested.
 - `(ecss-computed-style-provenance STYLE)` returns winner, origin, importance, layer, specificity, scope/source/declaration order, validity, and fallback facts.
 - `(ecss-computed-style-diagnostics STYLE)` returns deterministic diagnostics such as custom-property cycles.
 - `(ecss-computed-style-value STYLE PROPERTY &optional FALLBACK)` reads one value.
 - `(ecss-computed-style-present-p STYLE PROPERTY)` detects an active property even when its value is nil.
+- `(ecss-computed-style-specified-p STYLE PROPERTY)` detects whether a longhand property has a cascade winner.
 
 Every aggregate getter returns a defensive copy. Mutating a returned value cannot change a computed style, schema set, or stylesheet.

@@ -691,6 +691,37 @@
     (should (equal (ecss-computed-style-custom-properties style)
                    '(--theme ["blue"])))))
 
+(ert-deftest ecss-cascade-test-specified-properties-track-declaration-winners ()
+  (let* ((schemas (ecss-cascade-test--schemas))
+         (stylesheet (ecss-stylesheet-create))
+         (target (ecss-cascade-test--subject :classes '("target")))
+         (initial (ecss-compute-style schemas target))
+         parent child declared returned)
+    (ecss-stylesheet-add-rule
+     stylesheet schemas ".target" '(app/color "blue"))
+    (setq parent
+          (ecss-compute-style
+           schemas target :declarations '(app/payload ("from-parent")))
+          child
+          (ecss-compute-style schemas target :parent-style parent)
+          declared
+          (ecss-compute-style
+           schemas target :stylesheet stylesheet
+           :declarations '(app/width 12 app/payload ("inline"))))
+    (should (equal (ecss-computed-style-specified-properties declared)
+                   '(app/color app/width app/payload)))
+    (should (ecss-computed-style-specified-p declared 'app/color))
+    (should (ecss-computed-style-specified-p declared 'app/width))
+    (should (ecss-computed-style-specified-p declared 'app/payload))
+    (should-not (ecss-computed-style-specified-p initial 'app/color))
+    (should-not (ecss-computed-style-specified-p child 'app/payload))
+    (should (ecss-computed-style-present-p child 'app/payload))
+    (should (null (ecss-computed-style-provenance declared)))
+    (setq returned (ecss-computed-style-specified-properties declared))
+    (setcar returned :damaged)
+    (should (equal (ecss-computed-style-specified-properties declared)
+                   '(app/color app/width app/payload)))))
+
 (ert-deftest ecss-cascade-test-provenance-getter-copies-selector-data ()
   (let ((schemas (ecss-cascade-test--schemas))
         (stylesheet (ecss-stylesheet-create))
