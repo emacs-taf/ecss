@@ -801,7 +801,7 @@ STACK detects cycles and DIAGNOSTICS records them."
 
 (defun ecss--resolve-property-value
     (value schema parent-style custom-tables diagnostics)
-  "Resolve VALUE for SCHEMA using PARENT-STYLE, CUSTOM, and DIAGNOSTICS."
+  "Resolve VALUE for SCHEMA using PARENT-STYLE, CUSTOM-TABLES, and DIAGNOSTICS."
   (cond ((and (ecss--wide-p value)
               (memq (ecss--wide-kind value) '(initial inherit unset)))
          (ecss--wide-default value schema parent-style))
@@ -826,10 +826,10 @@ STACK detects cycles and DIAGNOSTICS records them."
 (defun ecss--compute-candidate-value
     (candidate schema source parent-style custom-tables diagnostics)
   "Resolve CANDIDATE for SCHEMA and computation context.
-SOURCE is the already resolved candidate value.  PARENT-STYLE and CUSTOM
+SOURCE is the already resolved candidate value.  PARENT-STYLE and CUSTOM-TABLES
 supply inherited values, and DIAGNOSTICS records variable failures."
-  (let* ((property (ecss-property-schema-id schema))
-         (resolved (ecss--resolve-property-value
+  (ignore candidate)
+  (let* ((resolved (ecss--resolve-property-value
                     source schema parent-style custom-tables diagnostics)))
     (cons (if (eq (cdr resolved) 'declaration)
               (ecss--normalize-property-value schema (car resolved))
@@ -845,8 +845,8 @@ supply inherited values, and DIAGNOSTICS records variable failures."
 (defun ecss--resolve-property-candidates
     (schema candidates parent-style custom-tables subject resolver diagnostics)
   "Resolve SCHEMA from ordered CANDIDATES.
-PARENT-STYLE and CUSTOM supply inherited values.  SUBJECT and RESOLVER handle
-explicit sources, and DIAGNOSTICS records variable failures."
+PARENT-STYLE and CUSTOM-TABLES supply inherited values.  SUBJECT and RESOLVER
+handle explicit sources, and DIAGNOSTICS records variable failures."
   (let ((remaining candidates) winner resolved)
     (while (and remaining (null winner))
       (let* ((candidate (pop remaining))
@@ -885,8 +885,9 @@ explicit sources, and DIAGNOSTICS records variable failures."
     (schemas table parent-style custom-tables subject resolver diagnostics
              provenance-p)
   "Compute SCHEMAS property values from TABLE and context.
-PARENT-STYLE and CUSTOM-TABLES supply inherited values.  SUBJECT and RESOLVER handle
-explicit sources.  DIAGNOSTICS records failures; PROVENANCE-P retains facts."
+PARENT-STYLE and CUSTOM-TABLES supply inherited values.  SUBJECT and RESOLVER
+handle explicit sources.  DIAGNOSTICS records failures; PROVENANCE-P retains
+facts."
   (let (values active specified provenance)
     (dolist (property (ecss--schema-set-order schemas))
       (let ((schema (ecss--schema-for schemas property)))
@@ -979,6 +980,29 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
            :provenance (and provenance
                             (append (cadr raw-facts) property-facts))
            :diagnostics (nreverse (car diagnostics))))))))
+
+;;;###autoload
+(cl-defun ecss-computed-style-copy-with-values
+    (style values &key active-properties specified-properties)
+  "Return STYLE copied with replacement VALUES and optional metadata.
+
+This is a narrow immutable-style transformation for consumers that have
+already proved selector/cascade facts unchanged and only need to propagate a
+safe computed-value delta.  Omitted ACTIVE-PROPERTIES and
+SPECIFIED-PROPERTIES retain STYLE's metadata; all mutable values are copied at
+the public boundary."
+  (unless (ecss-computed-style-p style)
+    (signal 'wrong-type-argument (list 'ecss-computed-style-p style)))
+  (let ((copy (copy-ecss-computed-style style)))
+    (setf (ecss--computed-style-values copy)
+          (ecss--copy-boundary-data values))
+    (when active-properties
+      (setf (ecss--computed-style-active-properties copy)
+            (ecss--copy-boundary-data active-properties)))
+    (when specified-properties
+      (setf (ecss--computed-style-specified-properties copy)
+            (ecss--copy-boundary-data specified-properties)))
+    copy))
 
 (defun ecss--computed-style-check (style)
   "Return STYLE or signal when it is not a computed style."

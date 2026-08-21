@@ -49,6 +49,7 @@ ORIGIN 是 `ua`、`user`、`author`、`animation` 或 `transition`。Inline decl
 - `(ecss-computed-style-custom-properties STYLE)` 返回 deterministic custom-property plist。
 - `(ecss-computed-style-active-properties STYLE)` 返回由有效 declaration 或 active inheritance 实际提供的 property ids，保留 explicit nil 与 absence 的区别；invalid winner 回退到 initial 时不伪装成 active declaration。
 - `(ecss-computed-style-specified-properties STYLE)` 返回存在 cascade winner 的长手 property ids，独立于是否请求 provenance。
+- `(ecss-computed-style-copy-with-values STYLE VALUES &key active-properties specified-properties)` 在 selector/cascade 事实已证明不变、只需替换 computed values 时返回新的 immutable-style copy。
 - `(ecss-computed-style-provenance STYLE)` 返回 winner、origin、important、layer、specificity、scope/source/declaration order、valid/fallback 等事实。
 - `(ecss-computed-style-diagnostics STYLE)` 返回 custom-property cycle 等 deterministic diagnostics。
 - `(ecss-computed-style-value STYLE PROPERTY &optional FALLBACK)` 读取单值。

@@ -38,6 +38,27 @@
   "Return PROPERTY from computed STYLE."
   (ecss-computed-style-value style property :absent))
 
+(ert-deftest ecss-cascade-test-computed-style-copy-with-values-is-defensive ()
+  "Copy computed STYLE while replacing values and preserving metadata."
+  (let* ((schemas (ecss-cascade-test--schemas))
+         (subject (ecss-cascade-test--subject))
+         (style (ecss-compute-style schemas subject
+                                    :declarations '(app/color "red")))
+         (copy (ecss-computed-style-copy-with-values
+                style '(app/color "blue")
+                :active-properties '(app/color)
+                :specified-properties '(app/color)))
+         (values (ecss-computed-style-values copy)))
+    (should-not (eq style copy))
+    (should (equal "blue" (plist-get values 'app/color)))
+    (should (equal '(app/color)
+                   (ecss-computed-style-active-properties copy)))
+    (should (equal '(app/color)
+                   (ecss-computed-style-specified-properties copy)))
+    (setf (plist-get values 'app/color) "mutated")
+    (should (equal "blue"
+                   (ecss-computed-style-value copy 'app/color)))))
+
 (ert-deftest ecss-cascade-test-schema-registration-is-atomic ()
   (let ((schemas (ecss-schema-set-create)))
     (ecss-schema-set-define schemas 'app/width :initial 4 :validator #'integerp)
