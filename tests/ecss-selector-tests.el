@@ -151,6 +151,21 @@
   (should-error (ecss-selector-normalize '(:unknown value))
                 :type 'ecss-invalid-selector))
 
+(ert-deftest ecss-selector-test-reports-subject-local-dependencies ()
+  "Selector dependency classification distinguishes tree-sensitive forms."
+  (dolist (selector
+           '("*" ".card" "button#save.primary[role=submit]:active"
+             "button:is(.primary, [role=submit])"
+             ".card:not(.disabled)" ".card, #fallback"))
+    (should (ecss-selector-subject-local-p selector)))
+  (dolist (selector
+           '("section .card" "section > .card" ".active + .target"
+             ".active ~ .target" "section:has(.card)"))
+    (should-not (ecss-selector-subject-local-p selector)))
+  (should-not (ecss-selector-subject-local-p '(:anchor)))
+  (should-error (ecss-selector-subject-local-p '(:unknown value))
+                :type 'ecss-invalid-selector))
+
 (ert-deftest ecss-selector-test-comments-escapes-and-quoted-attributes ()
   (let ((subject (ecss-subject-create
                   :type "div" :classes '("card" "a:b")

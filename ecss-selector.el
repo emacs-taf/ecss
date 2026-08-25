@@ -485,6 +485,24 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
   (let ((ast (if (stringp selector) (ecss-selector-parse selector) selector)))
     (ecss--copy-boundary-data (ecss--validate-selector ast))))
 
+(defun ecss--selector-subject-local-p (selector)
+  "Return non-nil when validated SELECTOR reads only its subject."
+  (pcase (car selector)
+    ((or :universal :type :id :class :state :attr) t)
+    ((or :and :list :is :where :not)
+     (cl-every #'ecss--selector-subject-local-p (cdr selector)))
+    (_ nil)))
+
+;;;###autoload
+(defun ecss-selector-subject-local-p (selector)
+  "Return non-nil when SELECTOR depends only on the matched subject.
+
+Subject-local selectors may inspect type, id, classes, attributes, states,
+and local logical combinations such as `:is' and `:not'.  Selectors involving
+ancestors, children, or siblings return nil.  Invalid selectors signal
+`ecss-invalid-selector'."
+  (ecss--selector-subject-local-p (ecss-selector-normalize selector)))
+
 (defun ecss--subject-attribute-cell (subject adapter name)
   "Return SUBJECT attribute NAME through ADAPTER."
   (assoc name (ecss--adapter-call adapter 'attributes subject)))

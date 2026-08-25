@@ -14,12 +14,12 @@ test: clean
 
 compile: clean
 	$(EMACS) -Q --batch $(LOADPATH) \
-	  --eval '(setq byte-compile-error-on-warn t)' \
+	  --eval '(setq byte-compile-error-on-warn t byte-compile-warnings (quote (not obsolete)))' \
 	  -f batch-byte-compile $(SRC)
 
 compile-all: clean
 	$(EMACS) -Q --batch $(LOADPATH) \
-	  --eval '(setq byte-compile-error-on-warn t)' \
+	  --eval '(setq byte-compile-error-on-warn t byte-compile-warnings (quote (not obsolete)))' \
 	  -f batch-byte-compile $(SRC) $(TESTS)
 
 checkdoc:
