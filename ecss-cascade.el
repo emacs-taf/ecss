@@ -163,7 +163,7 @@
 (defun ecss-schema-set-property (schemas id)
   "Return a defensive copy of property ID from SCHEMAS, or nil."
   (ecss--schema-set-check schemas)
-  (when-let ((schema (gethash id (ecss--schema-set-table schemas))))
+  (when-let* ((schema (gethash id (ecss--schema-set-table schemas))))
     (ecss--copy-property-schema schema)))
 
 (defun ecss-schema-set-property-ids (schemas)
@@ -254,7 +254,7 @@
   "Expand one PROPERTY VALUE declaration using SCHEMAS."
   (ecss--validate-declaration-property schemas property)
   (let ((schema (ecss--schema-for schemas property)))
-    (if-let ((expander (and schema
+    (if-let* ((expander (and schema
                             (ecss-property-schema-shorthand schema))))
         (pcase-let* ((`(,raw . ,important) (ecss--unwrap-important value))
                      (expanded
@@ -320,7 +320,7 @@ the same expanded longhand, including explicit nil declarations."
 
 (defun ecss--set-origin-layers (stylesheet origin layers)
   "Set STYLESHEET ORIGIN order to LAYERS."
-  (if-let ((cell (assq origin (ecss--stylesheet-layers stylesheet))))
+  (if-let* ((cell (assq origin (ecss--stylesheet-layers stylesheet))))
       (setcdr cell layers)
     (setf (ecss--stylesheet-layers stylesheet)
           (append (ecss--stylesheet-layers stylesheet)
@@ -417,7 +417,7 @@ optional selector limiting the rule to a matching subject or ancestor."
 
 (defun ecss--rule-match-facts (rule subject adapter)
   "Return RULE match facts for SUBJECT through ADAPTER, or nil."
-  (when-let ((specificity
+  (when-let* ((specificity
               (ecss--selector-matched-specificity
                (ecss-rule-selector rule) subject adapter)))
     (let ((distance (ecss--scope-distance
@@ -440,7 +440,7 @@ SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
 
 (defun ecss--rule-candidates (rule subject adapter)
   "Return candidates from matching RULE for SUBJECT through ADAPTER."
-  (when-let ((facts (ecss--rule-match-facts rule subject adapter)))
+  (when-let* ((facts (ecss--rule-match-facts rule subject adapter)))
     (cl-loop for (property value) on (ecss-rule-declarations rule) by #'cddr
              for declaration-order from 0
              collect (ecss--candidate-from-rule

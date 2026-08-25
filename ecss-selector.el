@@ -118,7 +118,7 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
       (setf (ecss-subject-parent old-child) nil)))
   (setf (ecss-subject-children subject) (copy-sequence children))
   (dolist (child children)
-    (when-let ((old-parent (ecss-subject-parent child)))
+    (when-let* ((old-parent (ecss-subject-parent child)))
       (unless (eq old-parent subject)
         (setf (ecss-subject-children old-parent)
               (delq child (ecss-subject-children old-parent)))))
@@ -509,7 +509,7 @@ ancestors, children, or siblings return nil.  Invalid selectors signal
 
 (defun ecss--subject-previous-siblings (subject adapter)
   "Return SUBJECT's preceding siblings through ADAPTER."
-  (when-let ((parent (ecss--subject-parent subject adapter)))
+  (when-let* ((parent (ecss--subject-parent subject adapter)))
     (let ((siblings (ecss--subject-children parent adapter)) result)
       (while (and siblings (not (eq (car siblings) subject)))
         (push (pop siblings) result))
@@ -580,7 +580,7 @@ Compare without case when INSENSITIVE is non-nil."
 
 (defun ecss--subject-following-siblings (subject adapter)
   "Return siblings following SUBJECT through ADAPTER."
-  (when-let ((parent (ecss--subject-parent subject adapter)))
+  (when-let* ((parent (ecss--subject-parent subject adapter)))
     (let ((siblings (ecss--subject-children parent adapter)))
       (while (and siblings (not (eq (pop siblings) subject))))
       siblings)))
@@ -626,7 +626,7 @@ Compare without case when INSENSITIVE is non-nil."
     (:has (ecss--selector-match-has (cdr selector) subject adapter))
     (:descendant (ecss--selector-match-descendant selector subject adapter))
     (:child (and (ecss-selector-match-p (nth 2 selector) subject adapter)
-                 (when-let ((parent (ecss--subject-parent subject adapter)))
+                 (when-let* ((parent (ecss--subject-parent subject adapter)))
                    (ecss-selector-match-p (nth 1 selector) parent adapter))))
     (:adjacent (ecss--selector-match-adjacent selector subject adapter))
     (:sibling (ecss--selector-match-sibling selector subject adapter))))
