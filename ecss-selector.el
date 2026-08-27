@@ -49,6 +49,16 @@
 Function values retain identity so executable literals remain callable."
   (cond
    ((functionp value) value)
+   ((hash-table-p value)
+    (let ((copy (copy-hash-table value)))
+      (clrhash copy)
+      (maphash
+       (lambda (key item)
+         (puthash (ecss--copy-boundary-data key)
+                  (ecss--copy-boundary-data item)
+                  copy))
+       value)
+      copy))
    ((consp value)
     (cons (ecss--copy-boundary-data (car value))
           (ecss--copy-boundary-data (cdr value))))

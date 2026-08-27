@@ -21,9 +21,13 @@ consumer schemas + subject adapter + stylesheet + parent style
 
 `ecss` does not know how computed values are displayed. TP may convert final text-property contributions into retained surface patches. Ebox may interpret final Box/Flex/Grid properties as measurement, layout, and painting consequences. Ordinary callers may use `ecss` without either package.
 
-## Explicit objects instead of process-global state
+## Package schemas and explicit surfaces
 
-Each consumer creates its own `ecss-schema-set` and `ecss-stylesheet`. Two applications can use the same selector tokens, different property vocabularies, and different layer orders in one Emacs process without interference. UA, user, and author origins inside one stylesheet also keep independent layer orders. Schema registration and rule addition are explicit atomic authoring operations. Failure cannot leave a partial schema, a half-added layer, or an incorrect source order.
+Each owning package creates one immutable `ecss-schema-package`. A concrete surface then atomically composes the required packages with `ecss-schema-set-compose`. Composition rejects duplicate packages and canonical/canonical, canonical/alias, and alias/alias collisions. There is no process-global mutable registry and no last-wins registration, so applications can compose different property vocabularies in one Emacs process without interference.
+
+Aliases exist only at declaration normalization and disappear before cascade. An alias/canonical duplicate or a shorthand/owned-longhand conflict inside one declaration fails immediately. The schema set retains owner, impact, and projection facts, and a computed style references that set instead of building a second computed tree. Packages and schema sets expose no mutator; public queries return detached data.
+
+Stylesheets remain explicitly owned mutable authoring objects. UA, user, and author origins inside one stylesheet keep independent layer orders. Rule addition is atomic, so failure cannot leave a half-added layer or an incorrect source order.
 
 ## Subjects and adapters
 

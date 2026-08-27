@@ -4,14 +4,19 @@
 
 ## Schema
 
-- `(ecss-schema-set-create)` 创建隔离 registry。
-- `(ecss-schema-set-define SCHEMAS ID &rest OPTIONS)` 原子注册 namespaced property。OPTIONS 是 `:initial`、`:inherits`、`:normalizer`、`:validator`、`:equality`、`:shorthand`。
-- `(ecss-schema-set-property SCHEMAS ID)` 返回 defensive schema copy。
-- `(ecss-schema-set-property-ids SCHEMAS)` 返回稳定注册顺序。
+- `(ecss-schema-package-create PACKAGE-ID DEFINITIONS)` 一次校验并快照一个 package 的属性定义。
+- `(ecss-schema-package-id PACKAGE)` 与 `(ecss-schema-package-property-ids PACKAGE)` 返回 detached identity/index 信息。
+- `(ecss-schema-set-compose &rest PACKAGES)` 原子组合一个 surface 的不可变 schema set；package、canonical 与 alias 冲突都会使整次组合失败。
+- `(ecss-schema-set-package-ids SCHEMAS)` 与 `(ecss-schema-set-property-ids SCHEMAS)` 返回稳定组合顺序。
+- `(ecss-schema-set-canonical-id SCHEMAS NAME)` 把 exact alias 解析为 canonical ID。
+- `(ecss-schema-set-property SCHEMAS ID)` 返回 defensive schema copy；`ID` 可以是 canonical 或 exact alias。
+- `(ecss-schema-set-property-metadata SCHEMAS ID)` 返回 detached metadata。
 - `(ecss-expand-declarations SCHEMAS DECLARATIONS)` 校验属性并只展开一次 shorthand。
 - `(ecss-merge-declarations SCHEMAS &rest DECLARATION-GROUPS)` 按从左到右的优先级展开并合并多组声明；后组覆盖相同 longhand，显式 nil 不会被当作缺省。
 
-Property ID 必须是包含 `/` 的 symbol，例如 `demo/color`。Custom property 不需要 schema，使用 `--name` symbol。`initial` 在 schema 注册时规范化并校验一次；已计算的 initial/inherited value 不会再次执行 normalizer。
+每个 definition 是包含 `:id`、非空 `:impacts`，以及可选 `:initial`、`:inherits`、`:normalizer`、`:validator`、`:equality`、`:shorthand`、`:aliases`、`:projections`、`:metadata` 的 plist。Property ID 必须是包含 `/` 的 symbol，例如 `demo/color`。Alias 只存在于声明归一化入口；同一声明中 canonical/alias、重复 alias 或 shorthand/owned-longhand 冲突会报错，不采用隐式 last-wins。不同 declaration group 仍由后组覆盖前组。
+
+Custom property 不需要 schema，使用 `--name` symbol。`initial` 在 package 创建时规范化并校验一次；已计算的 initial/inherited value 不会再次执行 normalizer。Package 与组合后的 schema set 没有公共 mutator。
 
 ## Subject 与 selector
 
@@ -52,8 +57,9 @@ ORIGIN 是 `ua`、`user`、`author`、`animation` 或 `transition`。Inline decl
 - `(ecss-computed-style-copy-with-values STYLE VALUES &key active-properties specified-properties)` 在 selector/cascade 事实已证明不变、只需替换 computed values 时返回新的 immutable-style copy。
 - `(ecss-computed-style-provenance STYLE)` 返回 winner、origin、important、layer、specificity、scope/source/declaration order、valid/fallback 等事实。
 - `(ecss-computed-style-diagnostics STYLE)` 返回 custom-property cycle 等 deterministic diagnostics。
-- `(ecss-computed-style-value STYLE PROPERTY &optional FALLBACK)` 读取单值。
+- `(ecss-computed-style-value STYLE PROPERTY &optional FALLBACK)` 读取 detached 单值；PROPERTY 可以是 canonical 或 exact alias。
+- `(ecss-computed-style-property-fact STYLE PROPERTY)` 返回一个 detached typed fact，包含 canonical property、computed value、owner、impact set、projections、winner provenance 与 metadata。同一个 fact 可同时交给多个 impact consumer，不重新规范化其 value。
 - `(ecss-computed-style-present-p STYLE PROPERTY)` 判断 property 是否 active，即使值为 nil。
 - `(ecss-computed-style-specified-p STYLE PROPERTY)` 判断长手 property 是否存在 cascade winner。
 
-所有 aggregate getter 都返回 defensive copy。调用者修改返回值不会改变 computed style、schema set 或 stylesheet。
+所有公共 schema/computed getter 都不会暴露 registry 或 computed style 的可变内部对象。调用者修改返回值不会改变 computed style、schema set 或 stylesheet。

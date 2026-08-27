@@ -13,12 +13,15 @@
 ```elisp
 (require 'ecss)
 
-(let ((schemas (ecss-schema-set-create))
-      (sheet (ecss-stylesheet-create))
-      (button (ecss-subject-create
-               :type "button" :classes '("primary"))))
-  (ecss-schema-set-define
-   schemas 'demo/color :initial "black" :inherits t :validator #'stringp)
+(let* ((package
+        (ecss-schema-package-create
+         'demo
+         '((:id demo/color :initial "black" :inherits t
+                :validator stringp :aliases (:color) :impacts (paint)))))
+       (schemas (ecss-schema-set-compose package))
+       (sheet (ecss-stylesheet-create))
+       (button (ecss-subject-create
+                :type "button" :classes '("primary"))))
   (ecss-stylesheet-add-rule
    sheet schemas "button.primary" '(demo/color "royalblue"))
   (ecss-computed-style-value
@@ -30,9 +33,9 @@
 ## 核心边界
 
 - `ecss-selector.el`：selector AST/parser/matcher/specificity 与通用 subject adapter。
-- `ecss-cascade.el`：显式 schema set、stylesheet、完整 winner 顺序、继承、变量解析和 provenance。
+- `ecss-cascade.el`：不可变 package schema、surface schema set、stylesheet、完整 winner 顺序、继承、变量解析和 provenance。
 - `ecss.el`：公开 package facade；加载时没有行为副作用。
-- schema set 和 stylesheet 只在显式 authoring API 中修改；`ecss-compute-style` 不修改输入对象或当前 Buffer。
+- package schema 与组合后的 schema set 不可变；stylesheet 只由显式 authoring API 修改；`ecss-compute-style` 不修改输入对象或当前 Buffer。
 - 普通 function value 永远是普通值。只有调用者显式传入 `:value-resolver` 时，ECSS 才调用该 resolver；ECSS 自己不认识 TP binding、Ebox node 或任何业务 value-source 类型。
 
 详细设计见 [架构](docs/architecture.zh.md) 与 [API 参考](docs/api.zh.md)。

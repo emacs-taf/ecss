@@ -21,9 +21,13 @@ consumer schemas + subject adapter + stylesheet + parent style
 
 `ecss` 不知道 computed values 最终如何显示。TP 可以把最终文本属性贡献转换成 retained surface patch；Ebox 可以把最终 Box/Flex/Grid 属性解释成 measurement、layout 与 painting 后果；普通调用者也可以完全不用 TP/Ebox。
 
-## 显式对象而不是进程全局状态
+## Package schema 与显式 surface
 
-每个 consumer 创建自己的 `ecss-schema-set` 与 `ecss-stylesheet`。两个应用可以在同一 Emacs 中使用同名 selector token、不同 property vocabulary 和不同 layer 顺序而互不污染；同一 stylesheet 中的 UA、user 与 author origin 也分别维护自己的 layer order。schema 注册与 rule 添加是显式、原子的 authoring 操作；一次失败不会留下半注册 schema、半添加 layer 或错误 source order。
+每个 owning package 一次创建不可变 `ecss-schema-package`；具体 surface 再用 `ecss-schema-set-compose` 原子组合所需 package。组合阶段统一拒绝重复 package、canonical/canonical、canonical/alias 与 alias/alias 冲突，不存在进程全局 mutable registry 或 last-wins 注册。两个应用因此可以在同一 Emacs 中组合不同 property vocabulary 而互不污染。
+
+Alias 只属于声明归一化入口，进入 cascade 前消失；同一声明中 alias/canonical 重复或 shorthand 与其输出 longhand 冲突会立即失败。Schema set 同时保存 owner、impact 与 projection facts，computed style 直接引用该 set，不建立第二棵 computed tree。Package/schema set 不提供 mutator，公共查询返回 detached 数据。
+
+Stylesheet 仍是每个调用者显式拥有的可变 authoring 对象。同一 stylesheet 中的 UA、user 与 author origin 分别维护 layer order；rule 添加是原子的，一次失败不会留下半添加 layer 或错误 source order。
 
 ## Subject 与 adapter
 

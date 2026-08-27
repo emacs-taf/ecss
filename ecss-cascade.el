@@ -25,13 +25,20 @@
 (cl-defstruct (ecss-property-schema
                (:constructor ecss--make-property-schema))
   "Schema governing one namespaced cascade property."
-  id initial inherits normalizer validator equality shorthand)
+  id owner initial inherits normalizer validator equality shorthand
+  aliases impacts projections metadata)
+
+(cl-defstruct (ecss-schema-package
+               (:constructor ecss--make-schema-package)
+               (:conc-name ecss--schema-package-))
+  "Immutable property schema registry owned by one package."
+  id table order)
 
 (cl-defstruct (ecss-schema-set
                (:constructor ecss--make-schema-set)
                (:conc-name ecss--schema-set-))
-  "Explicit registry of consumer-owned property schemas."
-  table order)
+  "Immutable composition of package-owned property schemas."
+  package-ids table aliases order)
 
 (cl-defstruct (ecss-stylesheet
                (:constructor ecss--make-stylesheet)
@@ -47,8 +54,19 @@
                (:constructor ecss--make-computed-style)
                (:conc-name ecss--computed-style-))
   "Computed declarations, custom properties, metadata, and diagnostics."
-  values custom-properties active-properties specified-properties
+  schemas values custom-properties active-properties specified-properties
   provenance diagnostics)
+
+(cl-defstruct (ecss-computed-property-fact
+               (:constructor ecss--make-computed-property-fact))
+  "One detached typed value with its package-owned schema facts."
+  (property nil :read-only t)
+  (value nil :read-only t)
+  (owner nil :read-only t)
+  (impacts nil :read-only t)
+  (projections nil :read-only t)
+  (provenance nil :read-only t)
+  (metadata nil :read-only t))
 
 (cl-defstruct (ecss--wide (:constructor ecss--make-wide)) kind)
 (cl-defstruct (ecss--important (:constructor ecss--make-important)) value)
@@ -60,8 +78,9 @@
   scope-distance source-order declaration-order selector)
 
 (defconst ecss--schema-option-keys
-  '(:initial :inherits :normalizer :validator :equality :shorthand)
-  "Accepted property schema option keys.")
+  '(:id :initial :inherits :normalizer :validator :equality :shorthand
+    :aliases :impacts :projections :metadata)
+  "Accepted keys in one package property definition.")
 
 (defconst ecss--origins '(ua user author animation transition)
   "Supported standard CSS cascade origins.")
@@ -71,10 +90,6 @@
 
 (defconst ecss--invalid (make-symbol "ecss-invalid-value"))
 (defconst ecss--absent (make-symbol "ecss-absent-value"))
-
-(defun ecss-schema-set-create ()
-  "Create an empty independent property schema set."
-  (ecss--make-schema-set :table (make-hash-table :test #'eq) :order nil))
 
 (defun ecss--schema-set-check (schemas)
   "Return SCHEMAS or signal when it is not a schema set."
@@ -102,6 +117,27 @@
        (cl-loop for key in options by #'cddr
                 always (memq key ecss--schema-option-keys))))
 
+(defun ecss--plist-unique-keys-p (plist)
+  "Return non-nil when PLIST contains each key once."
+  (let (seen valid)
+    (setq valid t)
+    (while (and plist valid)
+      (let ((key (pop plist)))
+        (pop plist)
+        (setq valid (not (memq key seen)))
+        (push key seen)))
+    valid))
+
+(defun ecss--unique-symbol-list-p (value &optional nonempty)
+  "Return non-nil when VALUE is a unique symbol list.
+When NONEMPTY is non-nil, reject an empty list."
+  (and (proper-list-p value)
+       (or (not nonempty) value)
+       (cl-every (lambda (item)
+                   (and (symbolp item) item))
+                 value)
+       (= (length value) (length (delete-dups (copy-sequence value))))))
+
 (defun ecss--schema-option (options key fallback)
   "Return KEY from OPTIONS when present, otherwise FALLBACK."
   (if (plist-member options key) (plist-get options key) fallback))
@@ -122,66 +158,177 @@
               (list :invalid-initial initial)))
     (ecss--copy-boundary-data normalized)))
 
-(defun ecss--build-property-schema (id options)
-  "Build a validated property schema for ID from OPTIONS."
-  (unless (and (ecss--canonical-property-id-p id)
-               (ecss--options-valid-p options))
-    (signal 'ecss-invalid-property-schema (list :property id options)))
-  (ecss--validate-schema-functions options)
-  (let* ((normalizer (ecss--schema-option options :normalizer #'identity))
-         (validator (ecss--schema-option
-                     options :validator (lambda (_value) t)))
-         (initial (ecss--normalize-schema-initial
-                   (plist-get options :initial) normalizer validator)))
-    (ecss--make-property-schema
-     :id id :initial initial
-     :inherits (and (plist-get options :inherits) t)
-     :normalizer normalizer :validator validator
-     :equality (ecss--schema-option options :equality #'equal)
-     :shorthand (plist-get options :shorthand))))
+(defun ecss--build-property-schema (owner definition)
+  "Build a validated property schema owned by OWNER from DEFINITION."
+  (let ((id (plist-get definition :id)))
+    (unless (and (ecss--canonical-property-id-p id)
+                 (ecss--options-valid-p definition)
+                 (ecss--plist-unique-keys-p definition)
+                 (ecss--unique-symbol-list-p
+                  (or (plist-get definition :aliases) nil))
+                 (ecss--unique-symbol-list-p
+                  (plist-get definition :impacts) t)
+                 (ecss--unique-symbol-list-p
+                  (or (plist-get definition :projections) nil)))
+      (signal 'ecss-invalid-property-schema
+              (list :property id definition)))
+    (ecss--validate-schema-functions definition)
+    (let* ((normalizer
+            (ecss--schema-option definition :normalizer #'identity))
+           (validator
+            (ecss--schema-option
+             definition :validator (lambda (_value) t)))
+           (initial (ecss--normalize-schema-initial
+                     (plist-get definition :initial) normalizer validator)))
+      (ecss--make-property-schema
+       :id id :owner owner :initial initial
+       :inherits (and (plist-get definition :inherits) t)
+       :normalizer normalizer :validator validator
+       :equality (ecss--schema-option definition :equality #'equal)
+       :shorthand (plist-get definition :shorthand)
+       :aliases (ecss--copy-boundary-data (plist-get definition :aliases))
+       :impacts (ecss--copy-boundary-data (plist-get definition :impacts))
+       :projections (ecss--copy-boundary-data
+                     (plist-get definition :projections))
+      :metadata (ecss--copy-boundary-data
+                  (plist-get definition :metadata))))))
+
+(defun ecss--composition-collision (name kind existing-kind)
+  "Signal NAME collision between KIND and EXISTING-KIND."
+  (signal 'ecss-invalid-property-schema
+          (list :collision name kind existing-kind)))
 
 ;;;###autoload
-(defun ecss-schema-set-define (schemas id &rest options)
-  "Atomically define property ID with OPTIONS in SCHEMAS."
-  (ecss--schema-set-check schemas)
-  (let* ((schema (ecss--build-property-schema id options))
-         (table (ecss--schema-set-table schemas)))
-    (unless (gethash id table)
-      (setf (ecss--schema-set-order schemas)
-            (append (ecss--schema-set-order schemas) (list id))))
-    (puthash id schema table)
-    (ecss--copy-property-schema schema)))
+(defun ecss-schema-package-create (package-id definitions)
+  "Create immutable PACKAGE-ID schema registry from DEFINITIONS."
+  (unless (and (symbolp package-id) package-id (not (keywordp package-id)))
+    (signal 'ecss-invalid-property-schema
+            (list :package-id package-id)))
+  (unless (proper-list-p definitions)
+    (signal 'ecss-invalid-property-schema
+            (list :definitions definitions)))
+  (let ((table (make-hash-table :test #'eq))
+        (aliases (make-hash-table :test #'eq))
+        order)
+    (dolist (definition definitions)
+      (unless (proper-list-p definition)
+        (signal 'ecss-invalid-property-schema
+                (list :definition definition)))
+      (let* ((schema (ecss--build-property-schema package-id definition))
+             (id (ecss-property-schema-id schema)))
+        (when (gethash id table)
+          (signal 'ecss-invalid-property-schema
+                  (list :duplicate-property id)))
+        (when (gethash id aliases)
+          (ecss--composition-collision id 'canonical 'alias))
+        (puthash id schema table)
+        (push id order)
+        (dolist (alias (ecss-property-schema-aliases schema))
+          (when (gethash alias table)
+            (ecss--composition-collision alias 'alias 'canonical))
+          (when (gethash alias aliases)
+            (ecss--composition-collision alias 'alias 'alias))
+          (puthash alias id aliases))))
+    (ecss--make-schema-package
+     :id package-id :table table :order (nreverse order))))
+
+(defun ecss-schema-package-id (package)
+  "Return immutable PACKAGE identity."
+  (unless (ecss-schema-package-p package)
+    (signal 'wrong-type-argument (list 'ecss-schema-package-p package)))
+  (ecss--schema-package-id package))
+
+(defun ecss-schema-package-property-ids (package)
+  "Return canonical property identifiers owned by PACKAGE."
+  (unless (ecss-schema-package-p package)
+    (signal 'wrong-type-argument (list 'ecss-schema-package-p package)))
+  (copy-sequence (ecss--schema-package-order package)))
+
+;;;###autoload
+(defun ecss-schema-set-compose (&rest packages)
+  "Compose immutable PACKAGES into one atomic schema set."
+  (let ((package-ids nil)
+        (table (make-hash-table :test #'eq))
+        (aliases (make-hash-table :test #'eq))
+        order)
+    (dolist (package packages)
+      (unless (ecss-schema-package-p package)
+        (signal 'wrong-type-argument (list 'ecss-schema-package-p package)))
+      (let ((package-id (ecss--schema-package-id package)))
+        (when (memq package-id package-ids)
+          (signal 'ecss-invalid-property-schema
+                  (list :duplicate-package package-id)))
+        (push package-id package-ids))
+      (dolist (id (ecss--schema-package-order package))
+        (when (gethash id table)
+          (ecss--composition-collision id 'canonical 'canonical))
+        (when (gethash id aliases)
+          (ecss--composition-collision id 'canonical 'alias))
+        (let ((schema (gethash id (ecss--schema-package-table package))))
+          (puthash id schema table)
+          (push id order)
+          (dolist (alias (ecss-property-schema-aliases schema))
+            (when (gethash alias table)
+              (ecss--composition-collision alias 'alias 'canonical))
+            (when (gethash alias aliases)
+              (ecss--composition-collision alias 'alias 'alias))
+            (puthash alias id aliases)))))
+    (ecss--make-schema-set
+     :package-ids (nreverse package-ids) :table table :aliases aliases
+     :order (nreverse order))))
 
 (defun ecss--copy-property-schema (schema)
   "Return a defensive copy of SCHEMA."
   (let ((copy (copy-ecss-property-schema schema)))
     (setf (ecss-property-schema-initial copy)
           (ecss--copy-boundary-data
-           (ecss-property-schema-initial schema)))
+           (ecss-property-schema-initial schema))
+          (ecss-property-schema-aliases copy)
+          (ecss--copy-boundary-data (ecss-property-schema-aliases schema))
+          (ecss-property-schema-impacts copy)
+          (ecss--copy-boundary-data (ecss-property-schema-impacts schema))
+          (ecss-property-schema-projections copy)
+          (ecss--copy-boundary-data (ecss-property-schema-projections schema))
+          (ecss-property-schema-metadata copy)
+          (ecss--copy-boundary-data (ecss-property-schema-metadata schema)))
     copy))
 
-(defun ecss-schema-set-property (schemas id)
-  "Return a defensive copy of property ID from SCHEMAS, or nil."
+(defun ecss-schema-set-package-ids (schemas)
+  "Return package identities composed into SCHEMAS."
   (ecss--schema-set-check schemas)
-  (when-let* ((schema (gethash id (ecss--schema-set-table schemas))))
+  (copy-sequence (ecss--schema-set-package-ids schemas)))
+
+(defun ecss-schema-set-canonical-id (schemas name)
+  "Return canonical property identifier for NAME in SCHEMAS, or nil."
+  (ecss--schema-set-check schemas)
+  (cond ((gethash name (ecss--schema-set-table schemas)) name)
+        ((gethash name (ecss--schema-set-aliases schemas)))))
+
+(defun ecss-schema-set-property (schemas id)
+  "Return a defensive property schema copy for ID or alias in SCHEMAS."
+  (ecss--schema-set-check schemas)
+  (when-let* ((canonical (ecss-schema-set-canonical-id schemas id))
+              (schema (gethash canonical (ecss--schema-set-table schemas))))
     (ecss--copy-property-schema schema)))
 
 (defun ecss-schema-set-property-ids (schemas)
   "Return property identifiers from SCHEMAS in registration order."
   (ecss--schema-set-check schemas)
-  (ecss--copy-boundary-data (ecss--schema-set-order schemas)))
+  (copy-sequence (ecss--schema-set-order schemas)))
 
-(defun ecss-schema-set-clear (schemas)
-  "Remove every property schema from SCHEMAS."
+(defun ecss-schema-set-property-metadata (schemas id)
+  "Return detached property metadata for ID in SCHEMAS."
   (ecss--schema-set-check schemas)
-  (clrhash (ecss--schema-set-table schemas))
-  (setf (ecss--schema-set-order schemas) nil)
-  schemas)
+  (when-let* ((canonical (ecss-schema-set-canonical-id schemas id))
+              (schema (gethash canonical (ecss--schema-set-table schemas))))
+    (ecss--copy-boundary-data (ecss-property-schema-metadata schema))))
 
 (defun ecss-property-equal-p (schemas property left right)
   "Return whether PROPERTY values LEFT and RIGHT are equal in SCHEMAS."
   (ecss--schema-set-check schemas)
-  (let ((schema (gethash property (ecss--schema-set-table schemas))))
+  (let* ((canonical (ecss-schema-set-canonical-id schemas property))
+         (schema (and canonical
+                      (gethash canonical (ecss--schema-set-table schemas)))))
     (unless schema
       (signal 'ecss-invalid-declaration (list :unknown-property property)))
     (funcall (ecss-property-schema-equality schema) left right)))
@@ -215,7 +362,8 @@
 
 (defun ecss--schema-for (schemas property)
   "Return PROPERTY schema from SCHEMAS, or nil."
-  (gethash property (ecss--schema-set-table schemas)))
+  (when-let* ((canonical (ecss-schema-set-canonical-id schemas property)))
+    (gethash canonical (ecss--schema-set-table schemas))))
 
 (defun ecss--validate-declaration-property (schemas property)
   "Return PROPERTY when it is valid for SCHEMAS."
@@ -253,7 +401,9 @@
 (defun ecss--expand-declaration (schemas property value)
   "Expand one PROPERTY VALUE declaration using SCHEMAS."
   (ecss--validate-declaration-property schemas property)
-  (let ((schema (ecss--schema-for schemas property)))
+  (let* ((canonical (or (ecss-schema-set-canonical-id schemas property)
+                        property))
+         (schema (ecss--schema-for schemas canonical)))
     (if-let* ((expander (and schema
                             (ecss-property-schema-shorthand schema))))
         (pcase-let* ((`(,raw . ,important) (ecss--unwrap-important value))
@@ -261,9 +411,15 @@
                       (ecss--copy-boundary-data
                        (funcall expander
                                 (ecss--copy-boundary-data raw)))))
-          (ecss--validate-expanded-longhands schemas property expanded)
-          (ecss--tag-important expanded important))
-      (list property (ecss--copy-boundary-data value)))))
+          (ecss--validate-expanded-longhands schemas canonical expanded)
+          (ecss--tag-important
+           (cl-loop for (longhand longhand-value) on expanded by #'cddr
+                    append
+                    (list (or (ecss-schema-set-canonical-id schemas longhand)
+                              longhand)
+                          longhand-value))
+           important))
+      (list canonical (ecss--copy-boundary-data value)))))
 
 ;;;###autoload
 (defun ecss-expand-declarations (schemas declarations)
@@ -271,8 +427,25 @@
   (ecss--schema-set-check schemas)
   (unless (ecss--declaration-list-p declarations)
     (signal 'ecss-invalid-declaration (list :declarations declarations)))
-  (cl-loop for (property value) on declarations by #'cddr
-           append (ecss--expand-declaration schemas property value)))
+  (let ((seen (make-hash-table :test #'eq)) result)
+    (cl-loop
+     for (source-property source-value) on declarations by #'cddr
+     for expanded = (ecss--expand-declaration
+                     schemas source-property source-value)
+     do
+     (cl-loop
+      for (property value) on expanded by #'cddr
+      for previous = (gethash property seen)
+      do
+      (when previous
+        (signal 'ecss-invalid-declaration
+                (list :duplicate-property property
+                      :first-source previous
+                      :second-source source-property)))
+      (puthash property source-property seen)
+      (push property result)
+      (push value result)))
+    (nreverse result)))
 
 ;;;###autoload
 (defun ecss-merge-declarations (schemas &rest declaration-groups)
@@ -890,7 +1063,7 @@ handle explicit sources.  DIAGNOSTICS records failures; PROVENANCE-P retains
 facts."
   (let (values active specified provenance)
     (dolist (property (ecss--schema-set-order schemas))
-      (let ((schema (ecss--schema-for schemas property)))
+      (let ((schema (gethash property (ecss--schema-set-table schemas))))
         (unless (ecss-property-schema-shorthand schema)
           (pcase-let ((`(,value ,winner ,invalid ,source)
                        (ecss--resolve-property-candidates
@@ -975,7 +1148,8 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
                     schemas table parent-style custom-tables subject value-resolver
                     diagnostics provenance)))
           (ecss--make-computed-style
-           :values values :custom-properties custom :active-properties active
+           :schemas schemas :values values :custom-properties custom
+           :active-properties active
            :specified-properties specified
            :provenance (and provenance
                             (append (cadr raw-facts) property-facts))
@@ -1045,21 +1219,53 @@ the public boundary."
 
 (defun ecss-computed-style-value (style property &optional fallback)
   "Return PROPERTY from computed STYLE, or FALLBACK when absent."
-  (let ((values (ecss--computed-style-values
-                 (ecss--computed-style-check style))))
-    (if (plist-member values property) (plist-get values property) fallback)))
+  (setq style (ecss--computed-style-check style))
+  (let* ((schemas (ecss--computed-style-schemas style))
+         (canonical (or (ecss-schema-set-canonical-id schemas property)
+                        property))
+         (values (ecss--computed-style-values style)))
+    (if (plist-member values canonical)
+        (ecss--copy-boundary-data (plist-get values canonical))
+      fallback)))
+
+(defun ecss-computed-style-property-fact (style property)
+  "Return one immutable computed fact for PROPERTY in STYLE, or nil."
+  (setq style (ecss--computed-style-check style))
+  (let* ((schemas (ecss--computed-style-schemas style))
+         (canonical (ecss-schema-set-canonical-id schemas property))
+         (schema (and canonical
+                      (gethash canonical (ecss--schema-set-table schemas))))
+         (values (ecss--computed-style-values style)))
+    (when (and schema (plist-member values canonical))
+      (ecss--make-computed-property-fact
+       :property canonical
+       :value (ecss--copy-boundary-data (plist-get values canonical))
+       :owner (ecss-property-schema-owner schema)
+       :impacts (ecss--copy-boundary-data
+                 (ecss-property-schema-impacts schema))
+       :projections (ecss--copy-boundary-data
+                     (ecss-property-schema-projections schema))
+       :provenance
+       (ecss--copy-boundary-data
+        (plist-get (ecss--computed-style-provenance style) canonical))
+       :metadata (ecss--copy-boundary-data
+                  (ecss-property-schema-metadata schema))))))
 
 (defun ecss-computed-style-present-p (style property)
   "Return non-nil when PROPERTY is actively supplied in computed STYLE."
-  (memq property
-        (ecss--computed-style-active-properties
-         (ecss--computed-style-check style))))
+  (setq style (ecss--computed-style-check style))
+  (memq (or (ecss-schema-set-canonical-id
+             (ecss--computed-style-schemas style) property)
+            property)
+        (ecss--computed-style-active-properties style)))
 
 (defun ecss-computed-style-specified-p (style property)
   "Return non-nil when PROPERTY has a cascade winner in computed STYLE."
-  (memq property
-        (ecss--computed-style-specified-properties
-         (ecss--computed-style-check style))))
+  (setq style (ecss--computed-style-check style))
+  (memq (or (ecss-schema-set-canonical-id
+             (ecss--computed-style-schemas style) property)
+            property)
+        (ecss--computed-style-specified-properties style)))
 
 (provide 'ecss-cascade)
 ;;; ecss-cascade.el ends here

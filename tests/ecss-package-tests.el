@@ -49,12 +49,16 @@
                      "0.1.0")))))
 
 (ert-deftest ecss-package-test-independent-schema-and-stylesheet-state ()
-  (let ((left-schemas (ecss-schema-set-create))
-        (right-schemas (ecss-schema-set-create))
+  (let ((left-schemas
+         (ecss-schema-set-compose
+          (ecss-schema-package-create
+           'left '((:id left/color :initial "left" :impacts (paint))))))
+        (right-schemas
+         (ecss-schema-set-compose
+          (ecss-schema-package-create
+           'right '((:id right/color :initial "right" :impacts (paint))))))
         (left-sheet (ecss-stylesheet-create))
         (right-sheet (ecss-stylesheet-create)))
-    (ecss-schema-set-define left-schemas 'left/color :initial "left")
-    (ecss-schema-set-define right-schemas 'right/color :initial "right")
     (ecss-stylesheet-add-rule
      left-sheet left-schemas "*" '(left/color "changed"))
     (should (null (ecss-stylesheet-rules right-sheet)))

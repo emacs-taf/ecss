@@ -11,24 +11,28 @@
 
 (defun ecss-cascade-test--schemas ()
   "Return the standard test schema set."
-  (let ((schemas (ecss-schema-set-create)))
-    (ecss-schema-set-define
-     schemas 'app/color :initial "black" :inherits t
-     :validator #'stringp)
-    (ecss-schema-set-define
-     schemas 'app/width :initial 0 :validator #'integerp)
-    (ecss-schema-set-define schemas 'app/payload :initial nil :inherits t)
-    (dolist (property '(app/padding-top app/padding-right
-                        app/padding-bottom app/padding-left))
-      (ecss-schema-set-define
-       schemas property :initial 0 :validator #'integerp))
-    (ecss-schema-set-define
-     schemas 'app/padding
-     :shorthand
-     (lambda (value)
-       (list 'app/padding-top value 'app/padding-right value
-             'app/padding-bottom value 'app/padding-left value)))
-    schemas))
+  (ecss-schema-set-compose
+   (ecss-schema-package-create
+    'app
+    (append
+     (list
+      (list :id 'app/color :initial "black" :inherits t
+            :validator #'stringp :impacts '(paint))
+      (list :id 'app/width :initial 0 :validator #'integerp
+            :impacts '(geometry))
+      (list :id 'app/payload :initial nil :inherits t :impacts '(data)))
+     (mapcar (lambda (property)
+               (list :id property :initial 0 :validator #'integerp
+                     :impacts '(geometry)))
+             '(app/padding-top app/padding-right
+               app/padding-bottom app/padding-left))
+     (list
+      (list
+       :id 'app/padding :initial nil :impacts '(geometry)
+       :shorthand
+       (lambda (value)
+         (list 'app/padding-top value 'app/padding-right value
+               'app/padding-bottom value 'app/padding-left value))))))))
 
 (defun ecss-cascade-test--subject (&rest options)
   "Return a button subject using OPTIONS."
@@ -59,30 +63,36 @@
     (should (equal "blue"
                    (ecss-computed-style-value copy 'app/color)))))
 
-(ert-deftest ecss-cascade-test-schema-registration-is-atomic ()
-  (let ((schemas (ecss-schema-set-create)))
-    (ecss-schema-set-define schemas 'app/width :initial 4 :validator #'integerp)
-    (should-error
-     (ecss-schema-set-define schemas 'app/width :initial "bad"
-                             :validator #'integerp)
-     :type 'ecss-invalid-property-schema)
+(ert-deftest ecss-cascade-test-schema-construction-is-atomic ()
+  (should-error
+   (ecss-schema-package-create
+    'app
+    '((:id app/width :initial 4 :validator integerp :impacts (geometry))
+      (:id app/bad :initial "bad" :validator integerp :impacts (geometry))))
+   :type 'ecss-invalid-property-schema)
+  (let ((schemas
+         (ecss-schema-set-compose
+          (ecss-schema-package-create
+           'app
+           '((:id app/width :initial 4 :validator integerp
+                  :impacts (geometry)))))))
     (should (= (ecss-property-schema-initial
                 (ecss-schema-set-property schemas 'app/width))
-               4))
-    (should-error
-     (ecss-schema-set-define schemas 'not-namespaced :initial 1)
-     :type 'ecss-invalid-property-schema)
-    (should (equal (ecss-schema-set-property-ids schemas) '(app/width)))))
+               4))))
 
 (ert-deftest ecss-cascade-test-computed-defaults-are-not-renormalized ()
-  (let ((schemas (ecss-schema-set-create))
-        (subject (ecss-cascade-test--subject))
+  (let ((subject (ecss-cascade-test--subject))
         (normalizations 0))
-    (ecss-schema-set-define
-     schemas 'app/value :initial 2 :inherits t
-     :normalizer (lambda (value) (cl-incf normalizations) (* value 10))
-     :validator #'integerp)
-    (let* ((initial (ecss-compute-style schemas subject))
+    (let* ((schemas
+            (ecss-schema-set-compose
+             (ecss-schema-package-create
+              'app
+              (list
+               (list :id 'app/value :initial 2 :inherits t
+                     :normalizer
+                     (lambda (value) (cl-incf normalizations) (* value 10))
+                     :validator #'integerp :impacts '(data))))))
+           (initial (ecss-compute-style schemas subject))
            (declared (ecss-compute-style
                       schemas subject :declarations '(app/value 3)))
            (inherited (ecss-compute-style
@@ -136,21 +146,15 @@
     (should (eq (aref merged-value 1) literal))
     (should (eq (funcall (aref merged-value 1)) :literal))))
 
-(ert-deftest ecss-cascade-test-shorthand-and-longhand-follow-declaration-order ()
+(ert-deftest ecss-cascade-test-shorthand-and-longhand-conflict-in-one-source ()
   (let ((schemas (ecss-cascade-test--schemas))
         (subject (ecss-cascade-test--subject)))
-    (should (= (ecss-cascade-test--value
-                (ecss-compute-style
-                 schemas subject
-                 :declarations '(app/padding 1 app/padding-left 2))
-                'app/padding-left)
-               2))
-    (should (= (ecss-cascade-test--value
-                (ecss-compute-style
-                 schemas subject
-                 :declarations '(app/padding-left 2 app/padding 1))
-                'app/padding-left)
-               1))))
+    (dolist (declarations
+             '((app/padding 1 app/padding-left 2)
+               (app/padding-left 2 app/padding 1)))
+      (should-error
+       (ecss-compute-style schemas subject :declarations declarations)
+       :type 'ecss-invalid-declaration))))
 
 (ert-deftest ecss-cascade-test-rule-addition-is-atomic ()
   (let ((schemas (ecss-cascade-test--schemas))
@@ -626,9 +630,13 @@
                      '((theme base)))))))
 
 (ert-deftest ecss-cascade-test-schema-boundaries-copy-mutable-values ()
-  (let* ((schemas (ecss-schema-set-create))
-         (caller-initial (vector (copy-sequence "base"))))
-    (ecss-schema-set-define schemas 'app/value :initial caller-initial)
+  (let* ((caller-initial (vector (copy-sequence "base")))
+         (schemas
+          (ecss-schema-set-compose
+           (ecss-schema-package-create
+            'app
+            (list (list :id 'app/value :initial caller-initial
+                        :impacts '(data)))))))
     (aset (aref caller-initial 0) 0 ?X)
     (let ((stored (ecss-property-schema-initial
                    (ecss-schema-set-property schemas 'app/value))))

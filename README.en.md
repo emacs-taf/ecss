@@ -13,12 +13,15 @@ This repository is a new lowercase `ecss` project. It neither modifies nor depen
 ```elisp
 (require 'ecss)
 
-(let ((schemas (ecss-schema-set-create))
-      (sheet (ecss-stylesheet-create))
-      (button (ecss-subject-create
-               :type "button" :classes '("primary"))))
-  (ecss-schema-set-define
-   schemas 'demo/color :initial "black" :inherits t :validator #'stringp)
+(let* ((package
+        (ecss-schema-package-create
+         'demo
+         '((:id demo/color :initial "black" :inherits t
+                :validator stringp :aliases (:color) :impacts (paint)))))
+       (schemas (ecss-schema-set-compose package))
+       (sheet (ecss-stylesheet-create))
+       (button (ecss-subject-create
+                :type "button" :classes '("primary"))))
   (ecss-stylesheet-add-rule
    sheet schemas "button.primary" '(demo/color "royalblue"))
   (ecss-computed-style-value
@@ -30,9 +33,9 @@ This repository is a new lowercase `ecss` project. It neither modifies nor depen
 ## Core boundary
 
 - `ecss-selector.el` owns the selector AST, parser, matcher, specificity, and generic subject adapter.
-- `ecss-cascade.el` owns explicit schema sets, stylesheets, complete winner ordering, inheritance, variable resolution, and provenance.
+- `ecss-cascade.el` owns immutable package schemas, surface schema sets, stylesheets, complete winner ordering, inheritance, variable resolution, and provenance.
 - `ecss.el` is the public package facade and has no behavioral load side effects.
-- Schema sets and stylesheets change only through explicit authoring APIs. `ecss-compute-style` mutates neither its inputs nor the current buffer.
+- Package schemas and composed schema sets are immutable. Stylesheets change only through explicit authoring APIs. `ecss-compute-style` mutates neither its inputs nor the current buffer.
 - An ordinary function value always remains a value. ECSS calls code only through an explicitly supplied `:value-resolver`; ECSS itself knows nothing about TP bindings, Ebox nodes, or consumer-specific value-source types.
 
 See [Architecture](docs/architecture.en.md) and [API Reference](docs/api.en.md) for the complete contract.
