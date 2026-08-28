@@ -55,7 +55,7 @@
                (:conc-name ecss--computed-style-))
   "Computed declarations, custom properties, metadata, and diagnostics."
   schemas values custom-properties active-properties specified-properties
-  provenance diagnostics)
+  winners provenance diagnostics)
 
 (cl-defstruct (ecss-computed-property-fact
                (:constructor ecss--make-computed-property-fact))
@@ -1061,7 +1061,7 @@ handle explicit sources, and DIAGNOSTICS records variable failures."
 PARENT-STYLE and CUSTOM-TABLES supply inherited values.  SUBJECT and RESOLVER
 handle explicit sources.  DIAGNOSTICS records failures; PROVENANCE-P retains
 facts."
-  (let (values active specified provenance)
+  (let (values active specified winners provenance)
     (dolist (property (ecss--schema-set-order schemas))
       (let ((schema (gethash property (ecss--schema-set-table schemas))))
         (unless (ecss-property-schema-shorthand schema)
@@ -1076,13 +1076,15 @@ facts."
                            (ecss--parent-property-active-p parent-style property)))
               (push property active))
             (when winner
-              (push property specified))
+              (push property specified)
+              (unless invalid
+                (setq winners (plist-put winners property winner))))
             (when provenance-p
               (setq provenance
                     (plist-put provenance property
                                (ecss--property-provenance
                                 winner invalid source))))))))
-    (list values (nreverse active) (nreverse specified) provenance)))
+    (list values (nreverse active) (nreverse specified) winners provenance)))
 
 (defun ecss--validate-rule-declarations (schemas rule)
   "Validate canonical declarations in RULE against SCHEMAS."
@@ -1143,7 +1145,7 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
            (custom (ecss--resolved-custom-properties
                     (car raw-facts) diagnostics)))
       (let ((custom-tables (ecss--custom-value-tables custom)))
-        (pcase-let ((`(,values ,active ,specified ,property-facts)
+        (pcase-let ((`(,values ,active ,specified ,winners ,property-facts)
                    (ecss--compute-property-values
                     schemas table parent-style custom-tables subject value-resolver
                     diagnostics provenance)))
@@ -1151,6 +1153,7 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
            :schemas schemas :values values :custom-properties custom
            :active-properties active
            :specified-properties specified
+           :winners winners
            :provenance (and provenance
                             (append (cadr raw-facts) property-facts))
            :diagnostics (nreverse (car diagnostics))))))))
@@ -1206,6 +1209,27 @@ the public boundary."
   (ecss--computed-style-check style)
   (ecss--copy-boundary-data
    (ecss--computed-style-specified-properties style)))
+
+(defun ecss-computed-style-precedence-winner (style properties)
+  "Return the highest-precedence declared property in PROPERTIES for STYLE.
+PROPERTIES may use canonical IDs or aliases from STYLE's schema set.  Nil is
+returned when none has a cascade winner.  The comparison reuses ECSS's exact
+cascade ordering and does not require public provenance materialization."
+  (setq style (ecss--computed-style-check style))
+  (let ((schemas (ecss--computed-style-schemas style))
+        (winners (ecss--computed-style-winners style))
+        winner-property winner)
+    (dolist (property properties winner-property)
+      (let* ((canonical
+              (or (ecss-schema-set-canonical-id schemas property)
+                  (signal 'ecss-invalid-declaration
+                          (list :unknown-property property))))
+             (candidate (plist-get winners canonical)))
+        (when (and candidate
+                   (or (null winner)
+                       (ecss--candidate-higher-p candidate winner)))
+          (setq winner-property canonical
+                winner candidate))))))
 
 (defun ecss-computed-style-provenance (style)
   "Return defensive winner provenance from computed STYLE."

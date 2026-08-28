@@ -751,6 +751,55 @@
     (should (equal (ecss-computed-style-specified-properties declared)
                    '(app/color app/width app/payload)))))
 
+(ert-deftest ecss-cascade-test-cross-property-projection-reuses-cascade-order ()
+  "A consumer projection should choose among property winners without recascade."
+  (let* ((schemas (ecss-cascade-test--schemas))
+         (stylesheet (ecss-stylesheet-create))
+         (subject (ecss-cascade-test--subject
+                   :id "hero" :classes '("target"))))
+    (ecss-stylesheet-add-rule
+     stylesheet schemas ".target" '(app/padding-left 1))
+    (ecss-stylesheet-add-rule
+     stylesheet schemas "#hero" '(app/width 2))
+    (let* ((ruled (ecss-compute-style
+                    schemas subject :stylesheet stylesheet))
+           (inline (ecss-compute-style
+                     schemas subject :stylesheet stylesheet
+                     :declarations '(app/padding-left 3)))
+           (copy (ecss-computed-style-copy-with-values
+                  inline (ecss-computed-style-values inline))))
+      (should (eq (ecss-computed-style-precedence-winner
+                   ruled '(app/padding-left app/width))
+                  'app/width))
+      (should (eq (ecss-computed-style-precedence-winner
+                   inline '(app/padding-left app/width))
+                  'app/padding-left))
+      (should (eq (ecss-computed-style-precedence-winner
+                   copy '(app/padding-left app/width))
+                  'app/padding-left))
+      (should-not (ecss-computed-style-provenance inline)))))
+
+(ert-deftest ecss-cascade-test-cross-property-projection-skips-invalid-winner ()
+  "An invalid declaration must not override a valid cross-property fact."
+  (let* ((schemas (ecss-cascade-test--schemas))
+         (stylesheet (ecss-stylesheet-create))
+         (subject (ecss-cascade-test--subject
+                   :id "hero" :classes '("target"))))
+    (ecss-stylesheet-add-rule
+     stylesheet schemas ".target" '(app/padding-left 5))
+    (ecss-stylesheet-add-rule
+     stylesheet schemas "#hero" '(app/width "invalid"))
+    (let ((style (ecss-compute-style
+                  schemas subject :stylesheet stylesheet)))
+      (should (eq (ecss-computed-style-precedence-winner
+                   style '(app/padding-left app/width))
+                  'app/padding-left))
+      (should (memq 'app/width
+                    (ecss-computed-style-specified-properties style)))
+      (should-not (memq 'app/width
+                        (ecss-computed-style-active-properties style)))
+      (should (= (ecss-computed-style-value style 'app/width) 0)))))
+
 (ert-deftest ecss-cascade-test-provenance-getter-copies-selector-data ()
   (let ((schemas (ecss-cascade-test--schemas))
         (stylesheet (ecss-stylesheet-create))

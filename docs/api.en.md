@@ -54,6 +54,7 @@ Do not pass both `:stylesheet` and `:rules`. `:rules` accepts the rule list retu
 - `(ecss-computed-style-custom-properties STYLE)` returns a deterministic custom-property plist.
 - `(ecss-computed-style-active-properties STYLE)` returns property IDs supplied by valid declarations or active inheritance, preserving explicit nil versus absence. An invalid winner falling back to the initial value is not presented as an active declaration.
 - `(ecss-computed-style-specified-properties STYLE)` returns longhand property IDs that have cascade winners, independent of whether provenance was requested.
+- `(ecss-computed-style-precedence-winner STYLE PROPERTIES)` returns the property ID whose already-selected declaration winner has the highest cascade precedence. It never reruns cascade or requires public provenance.
 - `(ecss-computed-style-copy-with-values STYLE VALUES &key active-properties specified-properties)` returns an immutable-style copy for a consumer that has already proved selector/cascade facts unchanged and only needs to replace computed values.
 - `(ecss-computed-style-provenance STYLE)` returns winner, origin, importance, layer, specificity, scope/source/declaration order, validity, and fallback facts.
 - `(ecss-computed-style-diagnostics STYLE)` returns deterministic diagnostics such as custom-property cycles.
