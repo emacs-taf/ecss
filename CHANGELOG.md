@@ -6,6 +6,9 @@ All notable changes to `ecss` are documented here.
 
 ### Changed
 
+- Hosts can validate concrete declaration values and identify ECSS-tagged
+  values through public helpers without accessing internal representations.
+
 - Static `.ecss` files now contain an unquoted rule list. Remove the outer
   quote from existing files. `ecss-read-rules` and `ecss-validate-rules` share
   inert rule syntax with file loading; wrappers and trailing forms are rejected.

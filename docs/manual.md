@@ -48,6 +48,13 @@ ORIGIN is `ua`, `user`, `author`, `animation`, or `transition`. Inline declarati
 
 Do not pass both `:stylesheet` and `:rules`. `:rules` accepts the rule list returned by `ecss-stylesheet-rules` for immutable snapshot storage and replay. `:parent-style` may be a computed style or an already computed values plist. Winner facts are retained only with `:provenance t`. `:value-resolver` has signature `(VALUE PROPERTY SUBJECT)`; without it ECSS calls no property value.
 
+Before cascade, a host may use `ecss-declaration-value-valid-p` with its concrete
+value predicate. Importance preserves the underlying value grammar; CSS-wide
+values and variable references wait for contextual schema validation. Use
+`ecss-declaration-value-tagged-p` to keep these values off direct display paths.
+A true preflight result for a contextual value does not establish that its final
+value is valid; `ecss-compute-style` still applies the schema after resolution.
+
 ## Computed styles
 
 - `(ecss-computed-style-values STYLE)` returns a defensive values plist.

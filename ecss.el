@@ -96,6 +96,20 @@
 ;; ECSS error
 ;; Catch this condition with condition-case; failed calls do not return a value.
 ;;
+;; Function: ecss-declaration-value-tagged-p (value)
+;;;###autoload (autoload 'ecss-declaration-value-tagged-p "ecss" nil nil)
+;; Return whether VALUE carries ECSS importance, CSS-wide or variable semantics
+;; and must be computed before projection. Ordinary nested data is not scanned;
+;; this neither resolves nor mutates VALUE.
+;;
+;; Function: ecss-declaration-value-valid-p (value predicate)
+;;;###autoload (autoload 'ecss-declaration-value-valid-p "ecss" nil nil)
+;; Validate concrete VALUE through PREDICATE before cascade. Importance tags
+;; are transparent; CSS-wide values and variable references defer validation
+;; and return t. Their resolved values still require the schema validator in
+;; `ecss-compute-style`. Other values pass unchanged to PREDICATE. Return a
+;; boolean without mutation or source evaluation; predicate errors propagate.
+;;
 ;; Function: ecss-expand-declarations (schemas declarations)
 ;;;###autoload (autoload 'ecss-expand-declarations "ecss" nil nil)
 ;; Validate and expand DECLARATIONS through SCHEMAS.

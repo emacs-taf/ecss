@@ -48,6 +48,12 @@ ORIGIN 是 `ua`、`user`、`author`、`animation` 或 `transition`。Inline decl
 
 不能同时传 `:stylesheet` 与 `:rules`。`:rules` 接受 `ecss-stylesheet-rules` 返回的 rule list，适用于不可变 snapshot 的保存和重放。`:parent-style` 可以是 computed style，也可以是已经计算完成的 values plist。`:provenance t` 才保留 winner facts。`:value-resolver` 的签名是 `(VALUE PROPERTY SUBJECT)`；未提供时 ECSS 不调用任何 property value。
 
+层叠前，宿主可用 `ecss-declaration-value-valid-p` 配合具体值谓词校验输入。
+importance 不改变底层值的语法；CSS-wide 值和变量引用留到上下文解析后由
+schema 校验。通过 `ecss-declaration-value-tagged-p` 可识别不能直接显示的
+声明值。上下文值预检返回真不代表最终值有效；`ecss-compute-style` 仍会在
+解析后应用 schema。
+
 ## Computed style
 
 - `(ecss-computed-style-values STYLE)` 返回 defensive values plist。

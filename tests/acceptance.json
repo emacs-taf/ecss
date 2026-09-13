@@ -378,6 +378,16 @@
       "name": "ecss-rules-validation-preserves-inert-values",
       "file": "tests/ecss-file-tests.el",
       "purpose": "Rule validation retains declaration data without executing function values or duplicating domain schemas."
+    },
+    {
+      "name": "ecss-declaration-values-validate-concrete-importance",
+      "file": "tests/ecss-value-tests.el",
+      "purpose": "Importance preserves concrete validation while tagged values are identified without exposing storage."
+    },
+    {
+      "name": "ecss-declaration-values-defer-contextual-schema-validation",
+      "file": "tests/ecss-value-tests.el",
+      "purpose": "Deferred values retain schema validation after contextual computation."
     }
   ]
 }

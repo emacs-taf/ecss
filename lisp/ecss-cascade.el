@@ -389,6 +389,28 @@ When NONEMPTY is non-nil, reject an empty list."
   (ecss--make-important :value value))
 
 ;;;###autoload
+(defun ecss-declaration-value-tagged-p (value)
+  "Return whether VALUE carries ECSS semantics requiring cascade computation.
+Importance, CSS-wide values and variable references must be computed before
+projection.  This inspects only the declaration value, not nested ordinary
+data, and neither resolves nor mutates VALUE."
+  (or (ecss--important-p value) (ecss--wide-p value) (ecss--var-ref-p value)))
+
+;;;###autoload
+(defun ecss-declaration-value-valid-p (value predicate)
+  "Check concrete declaration VALUE with PREDICATE before cascade computation.
+An importance tag is transparent to validation.  CSS-wide values and custom
+property references are context-dependent and return t without calling
+PREDICATE; their resolved values must pass the schema validator during
+`ecss-compute-style'.  Other values are passed unchanged to PREDICATE.
+Return a boolean.  This does not resolve variables, evaluate value sources
+or change VALUE, and errors from PREDICATE propagate."
+  (let ((raw (if (ecss--important-p value)
+                 (ecss--important-value value) value)))
+    (or (ecss--wide-p raw) (ecss--var-ref-p raw)
+        (and (funcall predicate raw) t))))
+
+;;;###autoload
 (defun ecss-var (name &rest fallback)
   "Return a custom property reference to NAME with optional FALLBACK."
   (unless (ecss--custom-property-p name)
