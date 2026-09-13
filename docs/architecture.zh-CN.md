@@ -33,6 +33,11 @@ Stylesheet 仍是每个调用者显式拥有的可变 authoring 对象。同一 
 
 简单场景直接使用 `ecss-subject`。已有树模型通过 `ecss-subject-adapter-create` 提供 type、id、classes、attributes、states、parent 与 children callback，不需要把业务节点复制成 ECSS node。selector query 与 stylesheet 都调用同一个 parser、matcher 和 specificity 实现，因此不会出现“查询能匹配但样式规则不能匹配”的两套语义。
 
+挂载作用域保存 stylesheet 与可选规则目标身份集合的快照。目标集合限定候选
+声明收集，选择器关系仍来自挂载根以内的宿主 adapter 树。这让样式所有权独立
+于物理父子关系，无需复制层叠算法，也不阻断继承。未指定集合时覆盖子树，空集合
+没有目标；集合按身份查询，不复制宿主节点。
+
 ## Cascade 顺序
 
 候选值按 CSS 顺序比较：relevance/match、origin+importance、cascade layer、specificity、scope proximity、source order、declaration order。标准 origin level 是 UA normal、user normal、author normal、animation、author important、user important、UA important、transition。normal layer 后声明者优先且 unlayered 高于 layered；important layer 反向，inline author declaration 在 author origin 内保持最高优先级。

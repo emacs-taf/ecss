@@ -209,10 +209,17 @@
 ;;;###autoload (autoload 'ecss-schema-set-property-metadata "ecss" nil nil)
 ;; Return detached property metadata for ID in SCHEMAS.
 ;;
-;; Function: ecss-scope-create (root stylesheet &optional parent)
+;; Function: ecss-scope-create (root stylesheet &key parent (subjects t))
 ;;;###autoload (autoload 'ecss-scope-create "ecss" nil nil)
 ;; Mount a snapshot of STYLESHEET at ROOT with optional PARENT scope.
 ;; Ordinary selector branches address strict descendants; `&' addresses ROOT.
+;; SUBJECTS is t (default) for unrestricted targets, or a proper list of subject
+;; identities compared with eq.  nil selects none.  The list is snapshotted;
+;; subjects and adapter trees remain host-owned.  Non-list membership signals
+;; wrong-type-argument.  Listed subjects outside ROOT cannot match.  Membership
+;; limits declaration targets, preserving structural traversal and inheritance.
+;; PARENT is an optional scope association, supplied by keyword; it does not
+;; automatically add or exclude subjects.  Pass every active scope to compute.
 ;;
 ;; Function: ecss-scope-stylesheet (x)
 ;;;###autoload (autoload 'ecss-scope-stylesheet "ecss" nil nil)

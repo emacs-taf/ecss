@@ -39,6 +39,45 @@ The parser supports selector lists, compound selectors, type/id/class, attribute
 
 ORIGIN is `ua`, `user`, `author`, `animation`, or `transition`. Inline declarations do not enter a stylesheet; pass them as compute-time `:declarations`.
 
+## Mounted scopes and author ownership
+
+A host mounts a stylesheet snapshot with `ecss-scope-create` and passes active
+scopes through `ecss-compute-style`'s `:scopes`. Ordinary selectors target strict
+descendants; `&` and `:scope` address the mounted root. A `:subjects` list limits
+rule targets to those host-owned identities, compared with `eq`. Omit it to allow
+all descendants; supply nil to allow none. Invalid lists signal
+`wrong-type-argument` before a scope is returned. The list and stylesheet are
+snapshotted; the host owns the subject tree and must keep adapter identities stable
+for the scope's lifetime. Create a new scope when author ownership changes.
+
+Membership is independent of physical parentage: caller-authored slot content may
+remain eligible below a child component while its fallback is excluded. Structural
+selectors still use the adapter tree within the mounted root, including nodes not
+in the target set; membership does not alter sibling numbering or inheritance.
+Listed nodes outside the mounted tree cannot match. Optional `:parent` records a
+scope association without adding its rules or changing membership. Pass both scopes
+explicitly when both participate. Global rules and inline declarations are unaffected.
+
+```elisp
+(let* ((schemas (ecss-schema-set-compose
+                 (ecss-schema-package-create
+                  'demo '((:id demo/color :initial "black"
+                           :validator stringp :impacts (paint))))))
+       (root (ecss-subject-create))
+       (child (ecss-subject-create :parent root))
+       (slot (ecss-subject-create :parent child :classes '("title")))
+       (fallback (ecss-subject-create :parent child :classes '("title")))
+       (sheet (ecss-stylesheet-create)))
+  (ecss-stylesheet-add-rule sheet schemas ".title" '(demo/color "blue"))
+  (let ((scope (ecss-scope-create root sheet :subjects (list root slot))))
+    (mapcar (lambda (subject)
+              (ecss-computed-style-value
+               (ecss-compute-style schemas subject :scopes (list scope))
+               'demo/color))
+            (list slot fallback))))
+;; => ("blue" "black")
+```
+
 ## Values and computation
 
 - `(ecss-important VALUE)` tags `!important`.

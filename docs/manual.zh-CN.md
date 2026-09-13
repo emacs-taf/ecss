@@ -39,6 +39,41 @@ Parser 支持 selector list、compound selector、type/id/class、attribute pres
 
 ORIGIN 是 `ua`、`user`、`author`、`animation` 或 `transition`。Inline declarations 不放入 stylesheet，而通过 compute 的 `:declarations` 传入。
 
+## 挂载作用域与样式所有权
+
+宿主通过 `ecss-scope-create` 挂载 stylesheet 快照，再通过
+`ecss-compute-style` 的 `:scopes` 提供所有活动作用域。普通选择器匹配严格
+后代，`&` 与 `:scope` 匹配挂载根。`:subjects` 列表按 `eq` 身份限定规则目标；
+省略时允许所有后代，显式 nil 表示没有目标。非法列表在返回作用域之前触发
+`wrong-type-argument`。列表和 stylesheet 均被快照保存；节点树仍由宿主拥有，
+宿主必须在作用域存续期间维持稳定的 adapter 身份。所有权改变时创建新作用域。
+
+目标归属独立于物理父子关系：调用者的 slot 内容可以在子组件之下继续接受调用者
+规则，同时排除子组件的 fallback。结构选择器仍在挂载根以内使用 adapter 树，
+包括不在目标集合中的节点；目标集合不改变兄弟编号或继承。列出的节点若不在
+挂载子树内也不会匹配。可选 `:parent` 只记录作用域关联，不自动添加父规则或
+改变目标集合；需要两个作用域时显式传入二者。全局规则与行内声明不受影响。
+
+```elisp
+(let* ((schemas (ecss-schema-set-compose
+                 (ecss-schema-package-create
+                  'demo '((:id demo/color :initial "black"
+                           :validator stringp :impacts (paint))))))
+       (root (ecss-subject-create))
+       (child (ecss-subject-create :parent root))
+       (slot (ecss-subject-create :parent child :classes '("title")))
+       (fallback (ecss-subject-create :parent child :classes '("title")))
+       (sheet (ecss-stylesheet-create)))
+  (ecss-stylesheet-add-rule sheet schemas ".title" '(demo/color "blue"))
+  (let ((scope (ecss-scope-create root sheet :subjects (list root slot))))
+    (mapcar (lambda (subject)
+              (ecss-computed-style-value
+               (ecss-compute-style schemas subject :scopes (list scope))
+               'demo/color))
+            (list slot fallback))))
+;; => ("blue" "black")
+```
+
 ## Values 与 computation
 
 - `(ecss-important VALUE)` 标记 `!important`。

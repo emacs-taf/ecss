@@ -151,5 +151,69 @@
                       (ecss-compute-style schemas root :scopes (list scope))
                       'test/color))))))
 
+(ert-deftest ecss-scope-explicit-targets-preserve-slot-ownership ()
+  "Noncontiguous author targets exclude child internals without changing structure."
+  (let* ((schemas (ecss-schema-set-compose
+                   (ecss-schema-package-create
+                    'test '((:id test/color :initial "none" :validator stringp
+                             :impacts (paint))))))
+         (root (ecss-subject-create))
+         (child (ecss-subject-create :parent root :classes '("child")))
+         (slot (ecss-subject-create :parent child :classes '("item")))
+         (fallback (ecss-subject-create :parent child :classes '("item")))
+         (outside (ecss-subject-create :classes '("item")))
+         (parent-sheet (ecss-stylesheet-create))
+         (child-sheet (ecss-stylesheet-create))
+         (members (list root slot outside)))
+    (ecss-stylesheet-add-rule parent-sheet schemas "&" '(test/color "root"))
+    (ecss-stylesheet-add-rule parent-sheet schemas ".child > .item:first-child"
+                              '(test/color "caller"))
+    (ecss-stylesheet-add-rule parent-sheet schemas ".item:last-child"
+                              '(test/color "leak"))
+    (ecss-stylesheet-add-rule child-sheet schemas ".item"
+                              '(test/color "child"))
+    (let* ((parent-scope (ecss-scope-create root parent-sheet :subjects members))
+           (scopes (list parent-scope
+                         (ecss-scope-create child child-sheet :parent parent-scope
+                                            :subjects (list child fallback)))))
+      ;; Caller mutation cannot transfer ownership in a mounted scope.
+      (setcar (cdr members) fallback)
+      (cl-mapc
+       (lambda (subject expected)
+         (should (equal expected
+                        (ecss-computed-style-value
+                         (ecss-compute-style schemas subject :scopes scopes)
+                         'test/color))))
+       (list root slot fallback outside) '("root" "caller" "child" "none")))))
+
+(ert-deftest ecss-scope-target-membership-does-not-block-inheritance ()
+  "Excluded nodes inherit computed values but receive no scoped declarations."
+  (let* ((schemas (ecss-schema-set-compose
+                   (ecss-schema-package-create
+                    'test '((:id test/color :initial "none" :inherits t
+                             :validator stringp :impacts (paint))))))
+         (root (ecss-subject-create))
+         (child (ecss-subject-create :parent root))
+         (sheet (ecss-stylesheet-create)))
+    (ecss-stylesheet-add-rule sheet schemas "&" '(test/color "inherited"))
+    (ecss-stylesheet-add-rule sheet schemas "*" '(test/color "leak"))
+    (let* ((scopes (list (ecss-scope-create root sheet :subjects (list root))))
+           (parent (ecss-compute-style schemas root :scopes scopes)))
+      (should (equal "inherited"
+                     (ecss-computed-style-value
+                      (ecss-compute-style schemas child :scopes scopes
+                                          :parent-style parent)
+                      'test/color))))
+    (should (equal "none"
+                   (ecss-computed-style-value
+                    (ecss-compute-style
+                     schemas root :scopes
+                     (list (ecss-scope-create root sheet :subjects nil)))
+                    'test/color)))
+    (should-error (ecss-scope-create root sheet :subjects [invalid])
+                  :type 'wrong-type-argument)
+    (should-error (ecss-scope-create root sheet :subjects '(bad . tail))
+                  :type 'wrong-type-argument)))
+
 (provide 'ecss-scope-tests)
 ;;; ecss-scope-tests.el ends here

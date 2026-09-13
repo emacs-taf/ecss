@@ -33,6 +33,13 @@ Stylesheets remain explicitly owned mutable authoring objects. UA, user, and aut
 
 Simple callers use `ecss-subject` directly. Existing tree models use `ecss-subject-adapter-create` to provide type, id, classes, attributes, states, parent, and children callbacks without copying business nodes into ECSS nodes. Selector queries and stylesheets share one parser, matcher, and specificity implementation, so query matching cannot drift from rule matching.
 
+Mounted scopes snapshot their stylesheet and an optional identity set of eligible
+rule targets. Membership filters candidate collection, while selector relationships
+remain those of the host adapter within the mounted root. This separates author
+ownership from physical parentage without duplicating cascade logic or suppressing
+inherited values. An absent membership constraint covers the subtree; an empty set
+matches no targets. Sets use identity lookup and do not copy host subjects.
+
 ## Cascade order
 
 Candidates compare by CSS order: relevance and matching, origin plus importance, cascade layer, specificity, scope proximity, source order, and declaration order. Standard origin levels are UA normal, user normal, author normal, animation, author important, user important, UA important, and transition. Later normal layers win and unlayered normal declarations beat layered ones. Important layers reverse order. Inline author declarations retain the highest priority inside the author origin.

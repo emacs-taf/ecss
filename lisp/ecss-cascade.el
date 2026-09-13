@@ -48,19 +48,26 @@
 
 (cl-defstruct (ecss-scope (:constructor ecss--make-scope))
   "A stylesheet mounted at a subject tree root."
-  root stylesheet parent)
+  root stylesheet parent subjects)
 
 (cl-defstruct (ecss-rule (:constructor ecss--make-rule))
   "One validated stylesheet rule."
   selector declarations origin layer layer-rank scope source-order)
 
-(defun ecss-scope-create (root stylesheet &optional parent)
+(cl-defun ecss-scope-create (root stylesheet &key parent (subjects t))
   "Mount a snapshot of STYLESHEET at ROOT with optional PARENT scope.
-Ordinary selector branches address strict descendants; `&' addresses ROOT."
+SUBJECTS is t for all descendants, or a proper list of eligible subject
+identities compared with `eq'.  The list is snapshotted; nil selects none.
+Ordinary selector branches address strict descendants; `&' addresses ROOT.
+Membership restricts declaration targets, not structural selector traversal
+or inherited values.  Listed subjects must still lie within ROOT's tree.
+Hosts retain ownership of subject identities and their adapter tree."
   (unless (and root (ecss-stylesheet-p stylesheet))
     (signal 'wrong-type-argument (list 'ecss-scope-create root stylesheet)))
   (when (and parent (not (ecss-scope-p parent)))
     (signal 'wrong-type-argument (list 'ecss-scope-p parent)))
+  (unless (or (eq subjects t) (proper-list-p subjects))
+    (signal 'wrong-type-argument (list 'listp subjects)))
   ;; A mounted scope is a value object.  Freeze the stylesheet at the mount
   ;; boundary so later mutations of the caller's builder cannot change an
   ;; already published scope.
@@ -69,7 +76,12 @@ Ordinary selector branches address strict descendants; `&' addresses ROOT."
                                   (ecss-stylesheet-rules stylesheet))
                    :layers (copy-tree (ecss-stylesheet-layers stylesheet))
                    :source-order (ecss--stylesheet-source-order stylesheet))))
-    (ecss--make-scope :root root :stylesheet snapshot :parent parent)))
+    (ecss--make-scope
+     :root root :stylesheet snapshot :parent parent
+     :subjects (unless (eq subjects t)
+                 (let ((members (make-hash-table :test #'eq)))
+                   (dolist (subject subjects) (puthash subject t members))
+                   members)))))
 
 (defun ecss--scope-reference-p (selector)
   "Return whether SELECTOR contains a scope root reference."
@@ -755,6 +767,8 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
               append
               (prog1
                   (cl-loop for rule in scoped-rules
+                           when (or (null (ecss-scope-subjects scope))
+                                    (gethash subject (ecss-scope-subjects scope)))
                            append
                            (let ((candidates (ecss--rule-candidates
                                               rule subject adapter

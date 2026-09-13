@@ -6,6 +6,11 @@ All notable changes to `ecss` are documented here.
 
 ### Changed
 
+- Mounted scopes accept `:subjects` to snapshot explicit rule targets, including
+  caller-authored content below another component. Structural matching and
+  inheritance retain the host tree's semantics. The optional parent argument to
+  `ecss-scope-create` is now passed as `:parent PARENT` instead of positionally.
+
 - Hosts can validate concrete declaration values and identify ECSS-tagged
   values through public helpers without accessing internal representations.
 

@@ -388,6 +388,16 @@
       "name": "ecss-declaration-values-defer-contextual-schema-validation",
       "file": "tests/ecss-value-tests.el",
       "purpose": "Deferred values retain schema validation after contextual computation."
+    },
+    {
+      "name": "ecss-scope-explicit-targets-preserve-slot-ownership",
+      "file": "tests/ecss-scope-tests.el",
+      "purpose": "Snapshot noncontiguous rule targets while preserving structural selectors and child ownership."
+    },
+    {
+      "name": "ecss-scope-target-membership-does-not-block-inheritance",
+      "file": "tests/ecss-scope-tests.el",
+      "purpose": "Restrict direct rule targets without suppressing inheritance; validate empty and invalid membership."
     }
   ]
 }
