@@ -1,13 +1,16 @@
-;;; ecss-cascade-tests.el --- Cascade tests -*- lexical-binding: t; -*-
+;;; ecss-cascade-tests.el --- Public API acceptance -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Geekinney
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;;; Code:
+;;; Commentary:
+;; Test supported package inputs, outputs, errors and lifecycle.
+;; Internal implementation details are outside this contract.
 
-(require 'ert)
+;;; Code:
 (require 'cl-lib)
-(require 'ecss-cascade)
+(require 'ert)
+(require 'ecss)
 
 (defun ecss-cascade-test--schemas ()
   "Return the standard test schema set."
@@ -63,23 +66,6 @@
     (should (equal "blue"
                    (ecss-computed-style-value copy 'app/color)))))
 
-(ert-deftest ecss-cascade-test-schema-construction-is-atomic ()
-  (should-error
-   (ecss-schema-package-create
-    'app
-    '((:id app/width :initial 4 :validator integerp :impacts (geometry))
-      (:id app/bad :initial "bad" :validator integerp :impacts (geometry))))
-   :type 'ecss-invalid-property-schema)
-  (let ((schemas
-         (ecss-schema-set-compose
-          (ecss-schema-package-create
-           'app
-           '((:id app/width :initial 4 :validator integerp
-                  :impacts (geometry)))))))
-    (should (= (ecss-property-schema-initial
-                (ecss-schema-set-property schemas 'app/width))
-               4))))
-
 (ert-deftest ecss-cascade-test-computed-defaults-are-not-renormalized ()
   (let ((subject (ecss-cascade-test--subject))
         (normalizations 0))
@@ -107,18 +93,6 @@
       (should (= (ecss-cascade-test--value inherited 'app/value) 30))
       (should (= (ecss-cascade-test--value wide-initial 'app/value) 20))
       (should (= normalizations 2)))))
-
-(ert-deftest ecss-cascade-test-shorthand-expands-once-and-preserves-important ()
-  (let* ((schemas (ecss-cascade-test--schemas))
-         (expanded (ecss-expand-declarations
-                    schemas (list 'app/padding (ecss-important 3)))))
-    (should (equal (cl-loop for (property _value) on expanded by #'cddr
-                            collect property)
-                   '(app/padding-top app/padding-right
-                     app/padding-bottom app/padding-left)))
-    (cl-loop for (_property value) on expanded by #'cddr
-             do (should (ecss--important-p value))
-             do (should (= (ecss--important-value value) 3)))))
 
 (ert-deftest ecss-cascade-test-merge-declarations-compacts-expanded-longhands ()
   "Later declaration groups should replace expanded longhands without loss."
@@ -597,96 +571,6 @@
        (ecss-compute-style
         schemas subject :stylesheet stylesheet :rules rules)
        :type 'ecss-invalid-rule))))
-
-(ert-deftest ecss-cascade-test-rule-snapshot-is-revalidated ()
-  (let ((schemas (ecss-cascade-test--schemas))
-        (stylesheet (ecss-stylesheet-create))
-        (subject (ecss-cascade-test--subject :classes '("target"))))
-    (ecss-stylesheet-add-rule
-     stylesheet schemas ".target" '(app/color "snapshot"))
-    (let ((rules (ecss-stylesheet-rules stylesheet)))
-      (setf (ecss-rule-declarations (car rules)) '(foreign/value 1))
-      (should-error (ecss-compute-style schemas subject :rules rules)
-                    :type 'ecss-invalid-declaration))))
-
-(ert-deftest ecss-cascade-test-authoring-getters-are-defensive ()
-  (let ((schemas (ecss-cascade-test--schemas))
-        (stylesheet (ecss-stylesheet-create)))
-    (ecss-stylesheet-add-rule
-     stylesheet schemas ".target" '(app/color "blue") :layer '(theme base))
-    (let ((schema (ecss-schema-set-property schemas 'app/color))
-          (rules (ecss-stylesheet-rules stylesheet))
-          (layers (ecss-stylesheet-layers stylesheet)))
-      (setf (ecss-property-schema-initial schema) "damaged")
-      (setf (ecss-rule-declarations (car rules)) '(app/color "damaged"))
-      (setcar (car layers) 'damaged)
-      (should (equal (ecss-property-schema-initial
-                      (ecss-schema-set-property schemas 'app/color))
-                     "black"))
-      (should (equal (ecss-rule-declarations
-                      (car (ecss-stylesheet-rules stylesheet)))
-                     '(app/color "blue")))
-      (should (equal (ecss-stylesheet-layers stylesheet)
-                     '((theme base)))))))
-
-(ert-deftest ecss-cascade-test-schema-boundaries-copy-mutable-values ()
-  (let* ((caller-initial (vector (copy-sequence "base")))
-         (schemas
-          (ecss-schema-set-compose
-           (ecss-schema-package-create
-            'app
-            (list (list :id 'app/value :initial caller-initial
-                        :impacts '(data)))))))
-    (aset (aref caller-initial 0) 0 ?X)
-    (let ((stored (ecss-property-schema-initial
-                   (ecss-schema-set-property schemas 'app/value))))
-      (should (equal stored ["base"]))
-      (aset (aref stored 0) 0 ?Y))
-    (let ((property-ids (ecss-schema-set-property-ids schemas)))
-      (setcar property-ids 'damaged)
-      (should (equal (ecss-schema-set-property-ids schemas) '(app/value))))
-    (should
-     (equal (ecss-property-schema-initial
-             (ecss-schema-set-property schemas 'app/value))
-            ["base"]))))
-
-(ert-deftest ecss-cascade-test-stylesheet-snapshots-mutable-inputs ()
-  (let* ((schemas (ecss-cascade-test--schemas))
-         (stylesheet (ecss-stylesheet-create))
-         (selector-token (copy-sequence "target"))
-         (caller-value (vector (copy-sequence "blue")))
-         (layer (vector (copy-sequence "theme"))))
-    (ecss-stylesheet-add-rule
-     stylesheet schemas (list :class selector-token)
-     (list 'app/payload caller-value) :layer layer)
-    (aset selector-token 0 ?X)
-    (aset (aref caller-value 0) 0 ?X)
-    (aset (aref layer 0) 0 ?X)
-    (let ((rule (car (ecss-stylesheet-rules stylesheet))))
-      (should (equal (ecss-rule-selector rule) '(:class "target")))
-      (should (equal (ecss-rule-declarations rule)
-                     '(app/payload ["blue"])))
-      (should (equal (ecss-stylesheet-layers stylesheet) '(["theme"]))))))
-
-(ert-deftest ecss-cascade-test-stylesheet-getters-copy-mutable-values ()
-  (let ((schemas (ecss-cascade-test--schemas))
-        (stylesheet (ecss-stylesheet-create)))
-    (ecss-stylesheet-add-rule
-     stylesheet schemas ".target" '(app/payload ["blue"])
-     :layer '["theme"])
-    (let ((rule (car (ecss-stylesheet-rules stylesheet)))
-          (layers (ecss-stylesheet-layers stylesheet)))
-      (aset (aref (plist-get (ecss-rule-declarations rule) 'app/payload) 0)
-            0 ?Y)
-      (aset (aref (ecss-rule-layer rule) 0) 0 ?Y)
-      (aset (aref (car layers) 0) 0 ?Y))
-    (should (equal (ecss-rule-declarations
-                    (car (ecss-stylesheet-rules stylesheet)))
-                   '(app/payload ["blue"])))
-    (should (equal (ecss-rule-layer
-                    (car (ecss-stylesheet-rules stylesheet)))
-                   '["theme"]))
-    (should (equal (ecss-stylesheet-layers stylesheet) '(["theme"])))))
 
 (ert-deftest ecss-cascade-test-computed-boundaries-copy-mutable-values ()
   (let* ((schemas (ecss-cascade-test--schemas))

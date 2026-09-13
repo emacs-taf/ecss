@@ -8,11 +8,7 @@ PACKAGE_LINT_LOAD_EXTRA ?=
 SRC = lisp/ecss-selector.el lisp/ecss-cascade.el lisp/ecss-file.el ecss.el
 TESTS = $(wildcard tests/*-tests.el)
 
-.PHONY: test compile compile-all checkdoc package-lint check clean diff-check
-
-test: clean
-	$(EMACS) -Q --batch $(LOADPATH) -l ecss.el \
-	  $(patsubst %,-l %,$(TESTS)) -f ert-run-tests-batch-and-exit
+.PHONY: compile compile-all checkdoc package-lint check clean diff-check
 
 compile: clean
 	$(EMACS) -Q --batch $(LOADPATH) \
@@ -63,3 +59,6 @@ acceptance:
 api-check:
 	$(EMACS) -Q --batch -L . $(API_PROVIDER_PATH) --eval '(setq load-prefer-newer t)' -l scripts/check-api.el
 API_PROVIDER_PATH = -L ../tp -L ../ekp -L ../ebox -L ../etaf -L ../etaf-ui -L ../etaf-db -L ../ebox-playground -L ../etaf-playground
+
+.PHONY: test
+test: acceptance

@@ -1,5 +1,11 @@
-;;; ecss-scope-tests.el --- Mounted scope contracts -*- lexical-binding: t; -*-
+;;; ecss-scope-tests.el --- Public API acceptance -*- lexical-binding: t; -*-
 
+;;; Commentary:
+;; Test supported package inputs, outputs, errors and lifecycle.
+;; Internal implementation details are outside this contract.
+
+;;; Code:
+(require 'cl-lib)
 (require 'ert)
 (require 'ecss)
 

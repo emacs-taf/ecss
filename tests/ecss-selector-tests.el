@@ -1,12 +1,16 @@
-;;; ecss-selector-tests.el --- Selector tests -*- lexical-binding: t; -*-
+;;; ecss-selector-tests.el --- Public API acceptance -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Geekinney
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;;; Code:
+;;; Commentary:
+;; Test supported package inputs, outputs, errors and lifecycle.
+;; Internal implementation details are outside this contract.
 
+;;; Code:
+(require 'cl-lib)
 (require 'ert)
-(require 'ecss-selector)
+(require 'ecss)
 
 (defun ecss-selector-test--tree ()
   "Return a small subject tree for selector tests."
