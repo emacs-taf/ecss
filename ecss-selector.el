@@ -38,11 +38,26 @@
 
 (defconst ecss--selector-delimiters
   '(?\s ?\t ?\n ?\r ?\f ?. ?# ?\[ ?\] ?: ?, ?> ?+ ?~ ?\( ?\) ?*
-    ?= ?| ?^ ?$ ?' ?\" ?/)
+    ?= ?| ?^ ?$ ?' ?\" ?/ ?&)
   "Characters that terminate an unescaped selector identifier.")
+
+(defconst ecss--structural-pseudos
+  '("first-child" "last-child" "only-child" "empty" "root"
+    "first-of-type" "last-of-type" "only-of-type")
+  "Nonfunctional pseudo-classes whose matching reads tree structure.")
+
+(defconst ecss--positional-pseudos
+  '("nth-child" "nth-last-child" "nth-of-type" "nth-last-of-type")
+  "Functional pseudo-classes whose matching reads sibling positions.")
 
 (defvar ecss--selector-anchor nil
   "Dynamically bound subject anchoring a relative selector.")
+
+(defvar ecss--scope-root nil
+  "Dynamically bound root for the current ECSS scope.")
+
+(defvar ecss--document-root nil
+  "Dynamically bound document root for structural pseudo-class matching.")
 
 (defun ecss--copy-boundary-data (value)
   "Return a detached copy of mutable caller boundary VALUE.
@@ -310,6 +325,56 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
      (substring (ecss--selector-parser-input parser) start
                 (1- (ecss--selector-parser-position parser))))))
 
+(defun ecss--nth-expression-normalize (expression)
+  "Return normalized CSS AN+B EXPRESSION."
+  (replace-regexp-in-string
+   "[[:space:]]+" "" (downcase (string-trim expression))))
+
+(defun ecss--nth-expression-valid-p (expression)
+  "Return non-nil when EXPRESSION is a valid CSS AN+B expression."
+  (when (stringp expression)
+    (let ((expression (ecss--nth-expression-normalize expression)))
+      (or (member expression '("odd" "even"))
+          (string-match-p "\\`[+-]?[0-9]+\\'" expression)
+          (string-match-p
+           "\\`[+-]?[0-9]*n\\(?:[+-][0-9]+\\)?\\'" expression)))))
+
+(defun ecss--nth-argument-split (argument)
+  "Return `(FORMULA . FILTER)' split from nth ARGUMENT.
+FILTER is a parsed selector after a top-level `of' keyword.  Parenthesized
+selectors and quoted strings may contain the word without starting the split."
+  (let ((length (length argument)) (index 0) (depth 0) quote escaped split)
+    (while (< index length)
+      (let ((character (aref argument index)))
+        (cond
+         (escaped (setq escaped nil))
+         ((eq character ?\\) (setq escaped t))
+         (quote (when (eq character quote) (setq quote nil)))
+         ((memq character '(?' ?\")) (setq quote character))
+         ((eq character ?\() (cl-incf depth))
+         ((eq character ?\))
+          (when (> depth 0) (cl-decf depth)))
+         ((and (zerop depth)
+               (<= (+ index 2) length)
+               (string-equal (downcase (substring argument index (+ index 2)))
+                             "of")
+               (> index 0) (< (+ index 2) length)
+               (ecss--selector-space-p (aref argument (1- index)))
+               (ecss--selector-space-p (aref argument (+ index 2))))
+          (when split
+            (signal 'ecss-invalid-selector (list :multiple-nth-of)))
+          (setq split index)
+          (setq index (+ index 1)))))
+      (cl-incf index))
+    (if split
+        (let ((formula (string-trim (substring argument 0 split)))
+              (selector (string-trim (substring argument (+ split 2)))))
+          (unless (and (not (string-empty-p formula))
+                       (not (string-empty-p selector)))
+            (signal 'ecss-invalid-selector (list :invalid-nth-of argument)))
+          (cons formula (ecss-selector-parse selector)))
+      (cons (string-trim argument) nil))))
+
 (defun ecss--anchor-relative-selector (selector kind)
   "Anchor relative SELECTOR with leading combinator KIND."
   (if (memq (car-safe selector) '(:descendant :child :adjacent :sibling))
@@ -359,8 +424,15 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
                   (if (eq (car-safe selectors) :list)
                       (cdr selectors)
                     (list selectors)))))
-       (t (list :state
-                (list name (ecss--parser-read-raw-function parser))))))))
+       (t
+        (let ((argument (ecss--parser-read-raw-function parser)))
+          (if (member name ecss--positional-pseudos)
+              (pcase-let ((`(,formula . ,filter)
+                           (ecss--nth-argument-split argument)))
+                (list :state
+                      (append (list name formula)
+                              (and filter (list filter)))))
+            (list :state (list name argument)))))))))
 
 (defun ecss--compound-item-p (character)
   "Return non-nil when CHARACTER can start a compound selector item."
@@ -369,7 +441,10 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
 (defun ecss--parser-read-compound (parser)
   "Read one compound selector from PARSER."
   (let (items)
-    (cond ((eq (ecss--parser-peek parser) ?*)
+    (cond ((eq (ecss--parser-peek parser) ?&)
+           (ecss--parser-take parser)
+           (push '(:scope-root) items))
+          ((eq (ecss--parser-peek parser) ?*)
            (ecss--parser-take parser)
            (push '(:universal) items))
           ((ecss--identifier-character-p (ecss--parser-peek parser))
@@ -468,19 +543,42 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
            (or (null (nth 4 selector))
                (member (nth 4 selector) '("i" "s"))))))
 
+(defun ecss--state-valid-p (state)
+  "Return non-nil when STATE is a valid pseudo-class payload."
+  (cond
+   ((stringp state) (not (string-empty-p state)))
+   ((and (proper-list-p state) (stringp (car state))
+         (stringp (cadr state)) (null (cdddr state)))
+    (let ((name (car state))
+          (argument (cadr state))
+          (filter (caddr state)))
+      (cond
+       ((member name ecss--positional-pseudos)
+        (and (ecss--nth-expression-valid-p argument)
+             (or (null filter)
+                 (and (member name '("nth-child" "nth-last-child"))
+                      (ecss-selector-valid-p filter)))))
+       ((member name '("lang" "dir"))
+        (and (not (string-empty-p (string-trim argument))) (null filter)))
+       (t (null filter)))))
+   (t nil)))
+
 (defun ecss-selector-valid-p (selector)
   "Return non-nil when structured SELECTOR is valid."
   (pcase (car-safe selector)
-    ((or :type :id :class :state)
+    ((or :type :id :class)
      (and (ecss--selector-form-p selector (car selector) 1)
           (nth 1 selector)))
+    (:state
+     (and (ecss--selector-form-p selector :state 1)
+          (ecss--state-valid-p (nth 1 selector))) )
     (:attr (ecss--attribute-selector-valid-p selector))
     ((or :and :list :is :where :not :has)
      (ecss--selector-list-valid-p (cdr selector)))
     ((or :descendant :child :adjacent :sibling)
      (and (ecss--selector-form-p selector (car selector) 2)
           (ecss--selector-list-valid-p (cdr selector))))
-    ((or :universal :anchor) (null (cdr selector)))
+    ((or :universal :anchor :scope-root) (null (cdr selector)))
     (_ nil)))
 
 (defun ecss--validate-selector (selector)
@@ -498,7 +596,13 @@ an alist.  PARENT and CHILDREN establish its initial tree position."
 (defun ecss--selector-subject-local-p (selector)
   "Return non-nil when validated SELECTOR reads only its subject."
   (pcase (car selector)
-    ((or :universal :type :id :class :state :attr) t)
+    ((or :universal :type :id :class :attr) t)
+    (:state
+     (let ((state (nth 1 selector)))
+       (not (if (consp state)
+                (member (car state) ecss--positional-pseudos)
+              (or (member state ecss--structural-pseudos)
+                  (equal state "scope"))))))
     ((or :and :list :is :where :not)
      (cl-every #'ecss--selector-subject-local-p (cdr selector)))
     (_ nil)))
@@ -524,6 +628,11 @@ ancestors, children, or siblings return nil.  Invalid selectors signal
       (while (and siblings (not (eq (car siblings) subject)))
         (push (pop siblings) result))
       (nreverse result))))
+
+(defun ecss--subject-siblings (subject adapter)
+  "Return SUBJECT's ordered siblings through ADAPTER, or nil without a parent."
+  (when-let* ((parent (ecss--subject-parent subject adapter)))
+    (ecss--subject-children parent adapter)))
 
 (defun ecss--attribute-token-member-p (needle value insensitive)
   "Return whether NEEDLE occurs in whitespace-separated VALUE.
@@ -611,17 +720,127 @@ Compare without case when INSENSITIVE is non-nil."
                         selectors))
              (ecss--relative-candidates subject adapter))))
 
+(defun ecss--structural-state-p (name subject adapter)
+  "Return whether structural pseudo NAME matches SUBJECT."
+  (let* ((children (ecss--subject-siblings subject adapter))
+         (position (and children (cl-position subject children :test #'eq)))
+         (type (ecss--adapter-call adapter 'type subject))
+         (same (and children
+                    (cl-remove-if-not
+                     (lambda (candidate)
+                       (equal type (ecss--adapter-call adapter 'type candidate)))
+                     children)))
+         (type-position (and same (cl-position subject same :test #'eq))))
+    (pcase name
+      ("first-child" (and position (= position 0)))
+      ("last-child" (and position (= position (1- (length children)))))
+      ("only-child" (and position (= (length children) 1)))
+      ("empty" (null (ecss--adapter-call adapter 'children subject)))
+      ("root" (if ecss--document-root
+                    (eq subject ecss--document-root)
+                  (null (ecss--subject-parent subject adapter))))
+      ("first-of-type" (and type-position (= type-position 0)))
+      ("last-of-type" (and type-position (= type-position (1- (length same)))))
+      ("only-of-type" (and type-position (= (length same) 1)))
+      (_ nil))))
+
+(defun ecss--nth-expression-matches-p (expression position)
+  "Return whether one-based POSITION matches CSS AN+B EXPRESSION."
+  (let* ((expression (ecss--nth-expression-normalize expression))
+         (expression (pcase expression
+                       ("odd" "2n+1") ("even" "2n") (_ expression)))
+         (n-position (string-match "\\`\\([+-]?[0-9]*\\)n\\([+-][0-9]+\\)?\\'" expression)))
+    (if n-position
+        (let* ((a-text (match-string 1 expression))
+               (a (cond ((or (null a-text) (string-empty-p a-text)) 1)
+                        ((equal a-text "+") 1)
+                        ((equal a-text "-") -1)
+                        (t (string-to-number a-text))))
+               (b (string-to-number (or (match-string 2 expression) "0"))))
+          (if (zerop a) (= position b)
+            (and (if (> a 0) (>= position b) (<= position b))
+                 (= (% (- position b) a) 0))))
+      (= position (string-to-number expression)))))
+
+(defun ecss--nth-siblings (subject adapter filter)
+  "Return siblings eligible for nth matching of SUBJECT through FILTER.
+When FILTER is nil, every sibling participates."
+  (let ((siblings (ecss--subject-siblings subject adapter)))
+    (and siblings
+         (if filter
+             (cl-remove-if-not
+              (lambda (candidate)
+                (ecss-selector-match-p filter candidate adapter))
+              siblings)
+           siblings))))
+
+(defun ecss--functional-structural-state-p
+    (name argument subject adapter &optional filter)
+  "Match functional structural NAME with ARGUMENT against SUBJECT."
+  (let* ((children (ecss--nth-siblings subject adapter filter))
+         (position (and children (cl-position subject children :test #'eq))))
+    (pcase name
+      ((or "nth-child" "nth-last-child")
+       (and position
+            (ecss--nth-expression-matches-p
+             argument (if (equal name "nth-child")
+                          (1+ position) (- (length children) position)))))
+      ((or "nth-of-type" "nth-last-of-type")
+       (let* ((type (ecss--adapter-call adapter 'type subject))
+              (same (cl-remove-if-not
+                     (lambda (candidate)
+                       (equal type (ecss--adapter-call adapter 'type candidate)))
+                     children))
+              (index (cl-position subject same :test #'eq)))
+         (and index
+              (ecss--nth-expression-matches-p
+               argument (if (equal name "nth-of-type")
+                            (1+ index) (- (length same) index))))))
+      (_ nil))))
+
+(defun ecss--metadata-value (name subject adapter)
+  "Return nearest inherited metadata attribute NAME for SUBJECT.
+Metadata lookup follows parent links because language and writing direction are
+inherited properties of a tree, unlike ordinary attribute selectors."
+  (cl-loop for current = subject then (ecss--subject-parent current adapter)
+           while current
+           for value = (cdr (assoc name
+                                   (ecss--adapter-call adapter 'attributes current)))
+           when value return value))
+
+(defun ecss--functional-metadata-state-p (name argument subject adapter)
+  "Match metadata pseudo NAME with ARGUMENT against SUBJECT."
+  (let ((value (ecss--metadata-value name subject adapter)))
+    (and (stringp value)
+         (or (equal (downcase value) (downcase argument))
+             (and (equal name "lang")
+                  (string-prefix-p (concat (downcase argument) "-")
+                                   (downcase value)))))))
+
 (defun ecss--selector-match-valid (selector subject adapter)
   "Match validated SELECTOR against SUBJECT through ADAPTER."
   (pcase (car selector)
     (:universal t)
     (:anchor (eq subject ecss--selector-anchor))
+    (:scope-root (eq subject ecss--scope-root))
     (:type (equal (nth 1 selector) (ecss--adapter-call adapter 'type subject)))
     (:id (equal (nth 1 selector) (ecss--adapter-call adapter 'id subject)))
     (:class (member (nth 1 selector)
                     (ecss--adapter-call adapter 'classes subject)))
-    (:state (member (nth 1 selector)
-                    (ecss--adapter-call adapter 'states subject)))
+    (:state
+     (let ((state (nth 1 selector)))
+       (cond
+        ((member state ecss--structural-pseudos)
+         (ecss--structural-state-p state subject adapter))
+        ((equal state "scope")
+         (and ecss--scope-root (eq subject ecss--scope-root)))
+        ((and (consp state) (member (car state) ecss--positional-pseudos))
+         (ecss--functional-structural-state-p
+          (car state) (cadr state) subject adapter (caddr state)))
+        ((and (consp state) (member (car state) '("lang" "dir")))
+         (ecss--functional-metadata-state-p
+          (car state) (cadr state) subject adapter))
+        (t (member state (ecss--adapter-call adapter 'states subject))))))
     (:attr (ecss--selector-match-attribute selector subject adapter))
     (:and (cl-every (lambda (item)
                       (ecss-selector-match-p item subject adapter))
@@ -679,6 +898,15 @@ Compare without case when INSENSITIVE is non-nil."
              :key #'ecss-selector-specificity
              :initial-value '(0 0 0)))
 
+(defun ecss--state-specificity (state)
+  "Return specificity of validated pseudo-class STATE payload."
+  (if (and (consp state)
+           (member (car state) '("nth-child" "nth-last-child"))
+           (caddr state))
+      (ecss--specificity-add '(0 1 0)
+                              (ecss-selector-specificity (caddr state)))
+    '(0 1 0)))
+
 ;;;###autoload
 (defun ecss-selector-specificity (selector)
   "Return SELECTOR specificity as an (ID CLASS TYPE) list."
@@ -688,9 +916,10 @@ Compare without case when INSENSITIVE is non-nil."
   (ecss--validate-selector selector)
   (pcase (car selector)
     (:id '(1 0 0))
-    ((or :class :attr :state) '(0 1 0))
+    ((or :class :attr) '(0 1 0))
+    (:state (ecss--state-specificity (nth 1 selector)))
     (:type '(0 0 1))
-    ((or :universal :anchor :where) '(0 0 0))
+    ((or :universal :anchor :scope-root :where) '(0 0 0))
     (:and (ecss--specificity-list-sum (cdr selector)))
     ((or :list :is :not :has)
      (ecss--specificity-max

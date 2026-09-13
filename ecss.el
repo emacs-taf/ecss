@@ -22,6 +22,7 @@
 
 (require 'ecss-selector)
 (require 'ecss-cascade)
+(require 'ecss-file)
 
 (provide 'ecss)
 ;;; ecss.el ends here

@@ -46,9 +46,52 @@
   "Ordered rules and cascade layers with no global state."
   rules layers source-order)
 
+(cl-defstruct (ecss-scope (:constructor ecss--make-scope))
+  "A stylesheet mounted at a subject tree root."
+  root stylesheet parent)
+
 (cl-defstruct (ecss-rule (:constructor ecss--make-rule))
   "One validated stylesheet rule."
   selector declarations origin layer layer-rank scope source-order)
+
+(defun ecss-scope-create (root stylesheet &optional parent)
+  "Mount a snapshot of STYLESHEET at ROOT with optional PARENT scope.
+Ordinary selector branches address strict descendants; `&' addresses ROOT."
+  (unless (and root (ecss-stylesheet-p stylesheet))
+    (signal 'wrong-type-argument (list 'ecss-scope-create root stylesheet)))
+  (when (and parent (not (ecss-scope-p parent)))
+    (signal 'wrong-type-argument (list 'ecss-scope-p parent)))
+  ;; A mounted scope is a value object.  Freeze the stylesheet at the mount
+  ;; boundary so later mutations of the caller's builder cannot change an
+  ;; already published scope.
+  (let ((snapshot (ecss--make-stylesheet
+                   :rules (mapcar #'copy-ecss-rule
+                                  (ecss-stylesheet-rules stylesheet))
+                   :layers (copy-tree (ecss-stylesheet-layers stylesheet))
+                   :source-order (ecss--stylesheet-source-order stylesheet))))
+    (ecss--make-scope :root root :stylesheet snapshot :parent parent)))
+
+(defun ecss--scope-reference-p (selector)
+  "Return whether SELECTOR contains a scope root reference."
+  (and (consp selector)
+       (or (eq (car selector) :scope-root)
+           (and (eq (car selector) :state)
+                (equal (nth 1 selector) "scope"))
+           (cl-some #'ecss--scope-reference-p (cdr selector)))))
+
+(defun ecss--subject-document-root (subject adapter)
+  "Return the outermost parent of SUBJECT through ADAPTER."
+  (let ((root subject) parent)
+    (while (setq parent (ecss--subject-parent root adapter))
+      (setq root parent))
+    root))
+
+(defun ecss--scope-selector (selector)
+  "Anchor ordinary SELECTOR branches inside a mounted scope."
+  (cond ((eq (car selector) :list)
+         (cons :list (mapcar #'ecss--scope-selector (cdr selector))))
+        ((ecss--scope-reference-p selector) selector)
+        (t (list :descendant '(:scope-root) selector))))
 
 (cl-defstruct (ecss-computed-style
                (:constructor ecss--make-computed-style)
@@ -611,14 +654,46 @@ SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
      :declaration-order declaration-order
      :selector (ecss-rule-selector rule))))
 
-(defun ecss--rule-candidates (rule subject adapter)
-  "Return candidates from matching RULE for SUBJECT through ADAPTER."
-  (when-let* ((facts (ecss--rule-match-facts rule subject adapter)))
-    (cl-loop for (property value) on (ecss-rule-declarations rule) by #'cddr
+(defun ecss--rule-candidates (rule subject adapter &optional scope-root)
+  "Return candidates from RULE for SUBJECT through ADAPTER.
+SCOPE-ROOT, when supplied, bounds traversal and sets scope proximity."
+  (when (or (null scope-root)
+            (cl-loop for current = subject then (ecss--subject-parent current adapter)
+                     while current thereis (eq current scope-root)))
+    (let* ((ecss--document-root (ecss--subject-document-root subject adapter))
+           (rule (if scope-root
+                     (let ((copy (copy-ecss-rule rule)))
+                       (setf (ecss-rule-selector copy)
+                             (ecss--scope-selector
+                              (ecss-rule-selector copy)))
+                       copy)
+                   rule))
+           (ecss--scope-root scope-root)
+          (adapter (if scope-root
+                       (let ((copy (copy-ecss-subject-adapter adapter))
+                             (parent (ecss-subject-adapter-parent adapter)))
+                         (setf (ecss-subject-adapter-parent copy)
+                               (lambda (node)
+                                 (unless (eq node scope-root)
+                                   (funcall parent node))))
+                         copy)
+                     adapter)))
+      (when-let* ((facts (ecss--rule-match-facts rule subject adapter)))
+        (when scope-root
+          (let ((mount-distance
+                 (cl-loop for current = subject then
+                          (ecss--subject-parent current adapter)
+                          for distance from 0
+                          when (eq current scope-root) return distance)))
+            ;; A rule may itself carry a scope selector.  Keep that
+            ;; proximity and add the mounted boundary distance instead of
+            ;; replacing it.
+            (setcdr facts (+ mount-distance (or (cdr facts) 0)))))
+       (cl-loop for (property value) on (ecss-rule-declarations rule) by #'cddr
              for declaration-order from 0
              collect (ecss--candidate-from-rule
                       rule property value (car facts) (cdr facts)
-                      declaration-order))))
+                      declaration-order))))))
 
 (defun ecss--max-source-order (rules)
   "Return greatest source order in RULES."
@@ -643,12 +718,30 @@ SPECIFICITY, DISTANCE, and DECLARATION-ORDER are the match precedence facts."
                 :selector :inline)))))
 
 (defun ecss--collect-candidates
-    (schemas subject adapter declarations rules)
+    (schemas subject adapter declarations rules &optional scopes)
   "Collect candidates for SUBJECT, DECLARATIONS, and RULES.
 SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
   (append
    (cl-loop for rule in rules
             append (ecss--rule-candidates rule subject adapter))
+   ;; Each sheet numbers its rules independently.  Flatten their source
+   ;; order here so a later mount wins a complete tie across sheets, too.
+   (let ((offset (1+ (ecss--max-source-order rules))))
+     (cl-loop for scope in scopes
+              for scoped-rules = (ecss-stylesheet-rules
+                                  (ecss-scope-stylesheet scope))
+              append
+              (prog1
+                  (cl-loop for rule in scoped-rules
+                           append
+                           (let ((candidates (ecss--rule-candidates
+                                              rule subject adapter
+                                              (ecss-scope-root scope))))
+                             (dolist (candidate candidates)
+                               (cl-incf (ecss--candidate-source-order candidate)
+                                        offset))
+                             candidates))
+                (cl-incf offset (1+ (ecss--max-source-order scoped-rules))))))
    (ecss--inline-candidates
     schemas declarations (1+ (ecss--max-source-order rules)))))
 
@@ -1124,7 +1217,7 @@ facts."
 ;;;###autoload
 (cl-defun ecss-compute-style
     (schemas subject &key stylesheet rules declarations parent-style
-             adapter provenance value-resolver)
+             adapter provenance value-resolver scopes)
   "Compute a deterministic style for SUBJECT using SCHEMAS.
 STYLESHEET or RULES supplies validated rules.  DECLARATIONS are inline.
 PARENT-STYLE may be another computed style or a values plist.  ADAPTER exposes
@@ -1138,7 +1231,7 @@ non-nil, is the only function allowed to evaluate caller-owned value sources;
     (let* ((rules (ecss--active-rules schemas stylesheet rules))
            (table (ecss--group-candidates
                    (ecss--collect-candidates
-                    schemas subject adapter declarations rules)))
+                    schemas subject adapter declarations rules scopes)))
            (diagnostics (list nil))
            (raw-facts (ecss--custom-raw-table
                        table parent-style subject value-resolver provenance))

@@ -3,7 +3,7 @@
 EMACS ?= emacs
 LOADPATH = -L . -L tests
 PACKAGE_LINT_LOAD_EXTRA ?=
-SRC = ecss-selector.el ecss-cascade.el ecss.el
+SRC = ecss-selector.el ecss-cascade.el ecss-file.el ecss.el
 TESTS = $(wildcard tests/*-tests.el)
 
 .PHONY: test compile compile-all checkdoc package-lint check clean diff-check
@@ -27,14 +27,14 @@ checkdoc:
 	  --eval '(progn (require (quote cl-lib)) (require (quote checkdoc)) \
 	    (cl-letf (((symbol-function (quote display-warning)) \
 	               (lambda (_type message &rest _args) (error "%s" message)))) \
-	      (dolist (file (quote ("ecss-selector.el" "ecss-cascade.el" "ecss.el"))) \
+	      (dolist (file (quote ("ecss-selector.el" "ecss-cascade.el" "ecss-file.el" "ecss.el"))) \
 	        (checkdoc-file file))))'
 
 package-lint:
 	$(EMACS) -Q --batch $(LOADPATH) $(PACKAGE_LINT_LOAD_EXTRA) \
 	  --eval '(progn (require (quote package-lint)) \
 	    (setq package-lint-main-file "ecss.el") \
-	    (dolist (file (quote ("ecss-selector.el" "ecss-cascade.el" "ecss.el"))) \
+	    (dolist (file (quote ("ecss-selector.el" "ecss-cascade.el" "ecss-file.el" "ecss.el"))) \
 	      (with-current-buffer (find-file-noselect file) \
 	        (let ((issues (package-lint-buffer))) \
 	          (when issues (error "package-lint failed for %s: %S" file issues))))))'

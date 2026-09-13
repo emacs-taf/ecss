@@ -61,6 +61,82 @@
                     "button:where(.primary, #other)")
                    '(0 0 1)))))
 
+(ert-deftest ecss-selector-test-structural-child-pseudos ()
+  "Structural child pseudos inspect the subject's actual sibling position."
+  (let* ((first (ecss-subject-create :type "span"))
+         (last (ecss-subject-create :type "span"))
+         (parent (ecss-subject-create :type "div"
+                                      :children (list first last))))
+    (should (ecss-selector-match-p "span:first-child" first))
+    (should (ecss-selector-match-p "span:last-child" last))
+    (should-not (ecss-selector-match-p "span:first-child" last))
+    (should-not (ecss-selector-match-p "span:last-child" first))
+    (should parent)))
+
+(ert-deftest ecss-selector-test-complete-structural-pseudos ()
+  "Match positional, type-relative, root, empty, and only-child selectors."
+  (let* ((a (ecss-subject-create :type "row"))
+         (b (ecss-subject-create :type "cell"))
+         (c (ecss-subject-create :type "row"))
+         (empty (ecss-subject-create :type "empty"))
+         (root (ecss-subject-create :type "list"
+                                    :children (list a b c empty))))
+    (should (ecss-selector-match-p ":root" root))
+    (should (ecss-selector-match-p "row:nth-child(2n+1)" a))
+    (should (ecss-selector-match-p "row:last-of-type" c))
+    (should (ecss-selector-match-p "cell:only-of-type" b))
+    (should (ecss-selector-match-p ":empty" empty))
+    (should-not (ecss-selector-match-p "row:first-of-type" c))))
+
+(ert-deftest ecss-selector-test-language-and-direction-pseudos ()
+  "Match :lang and :dir against subject metadata."
+  (let ((subject (ecss-subject-create
+                  :attributes '(("lang" . "zh-CN") ("dir" . "rtl")))))
+    (should (ecss-selector-match-p ":lang(zh)" subject))
+    (should (ecss-selector-match-p ":lang(zh-CN)" subject))
+    (should (ecss-selector-match-p ":dir(rtl)" subject))
+    (should-not (ecss-selector-match-p ":lang(en)" subject))
+    (should-not (ecss-selector-match-p ":dir(ltr)" subject))))
+
+(ert-deftest ecss-selector-test-nth-of-selector-filter ()
+  "Filter sibling positions before applying CSS AN+B arithmetic."
+  (let* ((first (ecss-subject-create :type "row" :classes '("item")))
+         (second (ecss-subject-create :type "row"))
+         (third (ecss-subject-create :type "row" :classes '("item")))
+         (fourth (ecss-subject-create :type "row" :classes '("item")))
+         (_root (ecss-subject-create
+                 :type "list" :children (list first second third fourth))))
+    (should (ecss-selector-match-p ".item:nth-child(2n of .item)" third))
+    (should-not (ecss-selector-match-p ".item:nth-child(2n of .item)" first))
+    (should (ecss-selector-match-p
+             ":nth-last-child(odd of .item, .special)" fourth))
+    (should (equal (ecss-selector-specificity
+                    ":nth-child(2n of #important, .item)")
+                   '(1 1 0)))
+    (should-error (ecss-selector-normalize ":nth-child(what)"))
+    (should-error (ecss-selector-normalize ":nth-of-type(2n of .item)"))))
+
+(ert-deftest ecss-selector-test-inherited-language-and-direction ()
+  "Language and direction metadata inherit through the subject tree."
+  (let* ((root (ecss-subject-create
+                :attributes '(("lang" . "zh-CN") ("dir" . "rtl"))))
+         (child (ecss-subject-create :parent root))
+         (english (ecss-subject-create
+                   :parent child :attributes '(("lang" . "en-US")))))
+    (should (ecss-selector-match-p ":lang(zh)" child))
+    (should (ecss-selector-match-p ":dir(rtl)" child))
+    (should-not (ecss-selector-match-p ":lang(zh)" english))
+    (should (ecss-selector-match-p ":dir(rtl)" english))))
+
+(ert-deftest ecss-selector-test-scope-alias-is-local-root ()
+  "The standard :scope spelling addresses the mounted Ebox root."
+  (let* ((root (ecss-subject-create))
+         (child (ecss-subject-create :parent root)))
+    (let ((ecss--scope-root root))
+      (should (ecss-selector-match-p ":scope" root))
+      (should-not (ecss-selector-match-p ":scope" child)))
+    (should-not (ecss-selector-match-p ":scope" root))))
+
 (ert-deftest ecss-selector-test-has-supports-relative-combinators ()
   (let* ((direct (ecss-subject-create :type "button" :classes '("direct")))
          (nested (ecss-subject-create :type "span" :classes '("nested")))
@@ -190,6 +266,31 @@
     (should (eq (ecss-subject-parent child) parent))
     (should (equal (ecss-subject-children parent) (list child)))
     (should (ecss-selector-match-p "panel:has(> button)" parent))))
+
+(ert-deftest ecss-selector-test-nth-boundary-arithmetic ()
+  "Exercise keyword, zero and negative coefficients through public matching."
+  (let* ((nodes (cl-loop repeat 5 collect (ecss-subject-create :type "row")))
+         (_root (ecss-subject-create :children nodes)))
+    (dolist (case '(("odd" (1 3 5)) ("even" (2 4)) ("0n+2" (2))
+                    ("0n" nil) ("-n+3" (1 2 3)) ("2n-1" (1 3 5))))
+      (cl-loop for node in nodes for index from 1 do
+               (should (eq (not (null (ecss-selector-match-p
+                                      (format ":nth-child(%s)" (car case)) node)))
+                           (not (null (memq index (cadr case))))))))))
+
+(ert-deftest ecss-selector-test-tree-pseudos-are-not-local ()
+  "Tree-sensitive selectors must never enter subject-only invalidation paths."
+  (dolist (selector '(":only-child" ":empty" ":root" ":first-of-type"
+                      ":last-of-type" ":only-of-type" ":nth-child(2n)"
+                      ":nth-last-child(2)" ":nth-of-type(2)"
+                      ":nth-last-of-type(2)" ":is(.a, :empty)"))
+    (should-not (ecss-selector-subject-local-p selector))))
+
+(ert-deftest ecss-selector-test-metadata-is-not-interaction-state ()
+  "Unrelated state tokens must not fabricate language or direction metadata."
+  (let ((subject (ecss-subject-create :states '("rtl" "zh"))))
+    (should-not (ecss-selector-match-p ":dir(rtl)" subject))
+    (should-not (ecss-selector-match-p ":lang(rtl)" subject))))
 
 (provide 'ecss-selector-tests)
 ;;; ecss-selector-tests.el ends here
