@@ -60,15 +60,14 @@ The minimum Emacs version is 28.1. The current package version is 0.1.0.
 
 ## Development
 
-After cloning, run `make setup-hooks`. Before submitting a change, run `make check`; `make structure-check` is the fast organization gate. The shared rules are in [AGENTS.md](AGENTS.md).
+After cloning, run `make setup-hooks`. Before submitting a change, run `make check`; `make structure-check` is the fast organization gate.
 
 [docs/manual.md](docs/manual.md) · [docs/architecture.md](docs/architecture.md) · [CHANGELOG.md](CHANGELOG.md)
 
-`make check` runs structure checks, compilation and the public acceptance scenarios listed in [tests/acceptance.json](tests/acceptance.json). `make test` runs the same public API suite. The inventory covers every maintained Lisp test; private implementation tests are deleted. GUI and performance checks use separate targets.
+`make check` runs structure checks, compilation and the public acceptance scenarios listed in [tests/acceptance.json](tests/acceptance.json). `make test` runs the same public API suite. The inventory covers every maintained Lisp test. GUI and performance checks use separate targets.
 
-## Source layout migration
+## Source layout
 
-Replace checkout paths ending in `/ecss/lisp` with `/ecss` and require
-`ecss`. Package archives must preserve the root entry and `lisp/` directory.
-Use only the public interfaces documented in the entry Commentary; internal
-feature imports and the former entry locations are removed.
+Add the repository root to `load-path` and require `ecss`. The root entry
+loads the implementation in `lisp/` and documents the supported public APIs in
+its Commentary. Package archives include both the root entry and `lisp/`.
