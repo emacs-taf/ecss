@@ -1,5 +1,9 @@
 # ecss
 
+Source layout: runtime code lives in `lisp/`; add that directory to `load-path`
+when using a checkout. Update older checkout configurations from the repository
+root to its `lisp/` subdirectory.
+
 [中文](README.zh-CN.md)
 
 `ecss` is an independent, pure, extensible CSS cascade engine for Emacs Lisp. It owns selectors, specificity, stylesheets, origins and importance, cascade layers, CSS-wide values, custom properties, `var()`, inheritance, computed styles, and provenance. It does not own text-property writes, reactive updates, buffer publication, or Box/Flex/Grid layout.

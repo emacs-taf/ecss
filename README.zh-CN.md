@@ -1,5 +1,8 @@
 # ecss
 
+源码布局：运行时代码位于 `lisp/`；从源码使用时，将该目录加入 `load-path`。
+升级旧 checkout 配置时，将原来的仓库加载路径改为其 `lisp/` 子目录。
+
 [English](README.md)
 
 `ecss` 是一个独立、纯计算、可扩展的 Emacs Lisp CSS 层叠引擎。它负责 selector、specificity、stylesheet、origin/importance、cascade layer、CSS-wide value、custom property、`var()`、inheritance、computed style 与 provenance；它不负责文本属性写入、响应式更新、Buffer 提交或 Box/Flex/Grid 布局。
