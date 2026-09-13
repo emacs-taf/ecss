@@ -1,8 +1,8 @@
 # ecss
 
-Source layout: runtime code lives in `lisp/`; add that directory to `load-path`
-when using a checkout. Update older checkout configurations from the repository
-root to its `lisp/` subdirectory.
+Source layout: add the repository root to `load-path` and use
+`(require 'ecss)`. The supported API and usage notes are in
+[`ecss.el`](ecss.el); implementation modules live in `lisp/`.
 
 [中文](README.zh-CN.md)
 
@@ -65,3 +65,10 @@ After cloning, run `make setup-hooks`. Before submitting a change, run `make che
 [docs/manual.md](docs/manual.md) · [docs/architecture.md](docs/architecture.md) · [CHANGELOG.md](CHANGELOG.md)
 
 `make check` runs structure checks, compilation and the public acceptance scenarios listed in [tests/acceptance.json](tests/acceptance.json). `make test` runs the broader regression suite; GUI and performance checks remain explicit targets. The acceptance inventory is selected by user-visible contracts, not by current pass/fail status.
+
+## Source layout migration
+
+Replace checkout paths ending in `/ecss/lisp` with `/ecss` and require
+`ecss`. Package archives must preserve the root entry and `lisp/` directory.
+Use only the public interfaces documented in the entry Commentary; internal
+feature imports and the former entry locations are removed.

@@ -1,7 +1,7 @@
 # ecss
 
-源码布局：运行时代码位于 `lisp/`；从源码使用时，将该目录加入 `load-path`。
-升级旧 checkout 配置时，将原来的仓库加载路径改为其 `lisp/` 子目录。
+源码布局：将仓库根目录加入 `load-path`，然后 require 与包同名的入口。
+入口 Commentary 列出公共 API 及用法；内部实现位于 `lisp/`。
 
 [English](README.md)
 

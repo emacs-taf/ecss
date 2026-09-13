@@ -19,7 +19,8 @@
   "Return FILE contents below the repository root."
   (with-temp-buffer
     (insert-file-contents (expand-file-name
-       (if (and (string-suffix-p ".el" file) (not (file-name-directory file)))
+       (if (and (not (equal file "ecss.el"))
+                (string-suffix-p ".el" file) (not (file-name-directory file)))
            (concat "lisp/" file) file) ecss-package-test--root))
     (buffer-string)))
 
@@ -40,7 +41,7 @@
 
 (ert-deftest ecss-package-test-main-metadata-is-installable ()
   (with-temp-buffer
-    (insert-file-contents (expand-file-name "lisp/ecss.el" ecss-package-test--root))
+    (insert-file-contents (expand-file-name "ecss.el" ecss-package-test--root))
     (let ((description (package-buffer-info)))
       (should (equal (package-desc-name description) 'ecss))
       (should (version-list-<= '(28 1)

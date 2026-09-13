@@ -3,15 +3,15 @@
 # Makefile for the ecss library.
 
 EMACS ?= emacs
-LOADPATH = -L lisp -L tests
+LOADPATH = -L . -L lisp -L tests
 PACKAGE_LINT_LOAD_EXTRA ?=
-SRC = lisp/ecss-selector.el lisp/ecss-cascade.el lisp/ecss-file.el lisp/ecss.el
+SRC = lisp/ecss-selector.el lisp/ecss-cascade.el lisp/ecss-file.el ecss.el
 TESTS = $(wildcard tests/*-tests.el)
 
 .PHONY: test compile compile-all checkdoc package-lint check clean diff-check
 
 test: clean
-	$(EMACS) -Q --batch $(LOADPATH) -l lisp/ecss.el \
+	$(EMACS) -Q --batch $(LOADPATH) -l ecss.el \
 	  $(patsubst %,-l %,$(TESTS)) -f ert-run-tests-batch-and-exit
 
 compile: clean
@@ -29,14 +29,14 @@ checkdoc:
 	  --eval '(progn (require (quote cl-lib)) (require (quote checkdoc)) \
 	    (cl-letf (((symbol-function (quote display-warning)) \
 	               (lambda (_type message &rest _args) (error "%s" message)))) \
-	      (dolist (file (quote ("lisp/ecss-selector.el" "lisp/ecss-cascade.el" "lisp/ecss-file.el" "lisp/ecss.el"))) \
+	      (dolist (file (quote ("lisp/ecss-selector.el" "lisp/ecss-cascade.el" "lisp/ecss-file.el" "ecss.el"))) \
 	        (checkdoc-file file))))'
 
 package-lint:
 	$(EMACS) -Q --batch $(LOADPATH) $(PACKAGE_LINT_LOAD_EXTRA) \
 	  --eval '(progn (require (quote package-lint)) \
-	    (setq package-lint-main-file "lisp/ecss.el") \
-	    (dolist (file (quote ("lisp/ecss-selector.el" "lisp/ecss-cascade.el" "lisp/ecss-file.el" "lisp/ecss.el"))) \
+	    (setq package-lint-main-file "ecss.el") \
+	    (dolist (file (quote ("lisp/ecss-selector.el" "lisp/ecss-cascade.el" "lisp/ecss-file.el" "ecss.el"))) \
 	      (with-current-buffer (find-file-noselect file) \
 	        (let ((issues (package-lint-buffer))) \
 	          (when issues (error "package-lint failed for %s: %S" file issues))))))'
@@ -44,10 +44,10 @@ package-lint:
 diff-check:
 	git diff --check
 
-check: structure-check compile acceptance
+check: structure-check compile acceptance api-check
 
 clean:
-	rm -f lisp/*.elc tests/*.elc
+	rm -f *.elc lisp/*.elc tests/*.elc
 
 .PHONY: structure-check setup-hooks
 structure-check:
@@ -58,3 +58,8 @@ setup-hooks:
 .PHONY: acceptance
 acceptance:
 	python3 scripts/run-acceptance.py --emacs "$(EMACS)"
+
+.PHONY: api-check
+api-check:
+	$(EMACS) -Q --batch -L . $(API_PROVIDER_PATH) --eval '(setq load-prefer-newer t)' -l scripts/check-api.el
+API_PROVIDER_PATH = -L ../tp -L ../ekp -L ../ebox -L ../etaf -L ../etaf-ui -L ../etaf-db -L ../ebox-playground -L ../etaf-playground
