@@ -64,3 +64,20 @@ ORIGIN 是 `ua`、`user`、`author`、`animation` 或 `transition`。Inline decl
 - `(ecss-computed-style-specified-p STYLE PROPERTY)` 判断长手 property 是否存在 cascade winner。
 
 所有公共 schema/computed getter 都不会暴露 registry 或 computed style 的可变内部对象。调用者修改返回值不会改变 computed style、schema set 或 stylesheet。
+
+## 静态规则数据
+
+`.ecss` 文件只保存一份有序列表，不加 quote 或 `styles` 包装：
+
+```elisp
+((".title" :color "#334155")
+ (".title.active" :font-weight bold))
+```
+
+文件使用 `ecss-file-read`，编辑器源字符串使用 `ecss-read-rules`。两者都只读
+数据、允许注释并拒绝多余表达式。空样式表写作 `nil` 或 `()`；空白文件属于
+未完成输入。值从不执行。普通 Elisp 调用方按语言规则引用字面量列表，或用
+`list` 构造，然后通过 `ecss-validate-rules` 校验同一语法。选择器采用 ECSS
+语义，属性是否合法仍由接收方 schema 决定。计算前将规则配合 schema 加入
+显式 stylesheet；来源、层和作用域继续通过 stylesheet API 表达，基础文件
+列表不取代这些构造接口。

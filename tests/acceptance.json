@@ -368,6 +368,16 @@
       "name": "ecss-selector-test-metadata-is-not-interaction-state",
       "file": "tests/ecss-selector-tests.el",
       "purpose": "Unrelated state tokens must not fabricate language or direction metadata."
+    },
+    {
+      "name": "ecss-rules-reader-rejects-wrappers-and-malformed-data",
+      "file": "tests/ecss-file-tests.el",
+      "purpose": "One inert list grammar rejects wrappers, malformed rules and trailing execution syntax."
+    },
+    {
+      "name": "ecss-rules-validation-preserves-inert-values",
+      "file": "tests/ecss-file-tests.el",
+      "purpose": "Rule validation retains declaration data without executing function values or duplicating domain schemas."
     }
   ]
 }

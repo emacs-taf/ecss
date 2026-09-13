@@ -1,10 +1,9 @@
-;;; ecss-file.el --- File format helpers for ECSS -*- lexical-binding: t; -*-
+;;; ecss-file.el --- Static rule data for ECSS -*- lexical-binding: t; -*-
 
 ;;; Commentary:
-;; A `.ecss' file is one quoted, unevaluated Elisp list of rules:
+;; A `.ecss' file contains one unevaluated rule list, without a quote wrapper:
 ;; ((".card" :color "red") ("& > .title" :font-weight bold))
-;; Parsing is deliberately independent of Ebox; consumers mount the returned
-;; rules into their own stylesheet and schema.
+;; Consumers validate property values through their own schemas.
 
 ;;; Code:
 
@@ -12,43 +11,50 @@
 (require 'elisp-mode)
 (defvar read-eval)
 
-(defun ecss-file-read (file)
-  "Read and validate the rule list stored in FILE."
-  (unless (file-readable-p file)
-    (user-error "ECSS file is not readable: %s" file))
+(defun ecss-validate-rules (rules)
+  "Validate ordered static RULES and return them without evaluating values.
+RULES is a proper list of (SELECTOR PROPERTY VALUE ...) rules.  SELECTOR is
+an ECSS selector string; PROPERTY is a non-nil symbol.  Empty lists and
+empty declarations are allowed.  Property names and values are validated
+later against the consumer's schema.  No input is mutated."
+  (unless (proper-list-p rules)
+    (user-error "ECSS rules must be a proper list"))
+  (dolist (rule rules)
+    (unless (and (consp rule) (proper-list-p rule) (stringp (car rule))
+                 (zerop (% (length (cdr rule)) 2)))
+      (user-error "Invalid ECSS rule: %S" rule))
+    (ecss-selector-parse (car rule))
+    (cl-loop for (property _value) on (cdr rule) by #'cddr
+             unless (and property (symbolp property))
+             do (user-error "ECSS property must be a non-nil symbol: %S" property)))
+  rules)
+
+(defun ecss-read-rules (source)
+  "Read exactly one inert rule list from string SOURCE.
+Comments and whitespace are allowed around the list.  Empty input,
+wrappers, trailing expressions and malformed rules are rejected.  This
+never evaluates Lisp or calls declaration values.  Property semantics are
+validated by the consumer's schema after reading."
   (with-temp-buffer
     (set-syntax-table emacs-lisp-mode-syntax-table)
-    (insert-file-contents file)
+    (insert source)
+    (goto-char (point-min))
     (let* ((read-eval nil)
            (form (read (current-buffer))))
       (forward-comment (point-max))
       (unless (eobp)
-        (user-error "ECSS file must contain one expression: %s" file))
-      (unless (and (consp form) (eq (car form) 'quote)
-                   (consp (cdr form)) (null (cddr form)))
-        (user-error "ECSS file must contain one quoted rule list: %s" file))
-      (let ((value (cadr form)))
-      (unless (proper-list-p value)
-        (user-error "ECSS file must contain a rule list: %s" file))
-      (mapcar (lambda (rule)
-                (unless (and (proper-list-p rule) (stringp (car rule))
-                             (zerop (% (length (cdr rule)) 2)))
-                  (user-error "Invalid ECSS rule in %s: %S" file rule))
-                (ecss-selector-parse (car rule))
-                rule)
-              value)))))
+        (user-error "ECSS source must contain one rule list"))
+      (ecss-validate-rules form))))
 
-(defun ecss-file-load-into (file stylesheet schemas &optional origin)
-  "Load FILE rules into STYLESHEET using SCHEMAS and ORIGIN."
-  (let ((rules (ecss-file-read file))
-        (validated (ecss-stylesheet-create)))
-    ;; Validate every declaration before changing the caller's sheet.
-    (dolist (rule rules)
-      (ecss-stylesheet-add-rule validated schemas (car rule) (cdr rule)
-                                :origin (or origin 'author)))
-    (dolist (rule rules stylesheet)
-      (ecss-stylesheet-add-rule stylesheet schemas (car rule) (cdr rule)
-                                :origin (or origin 'author)))))
+(defun ecss-file-read (file)
+  "Read FILE as one inert rule list through `ecss-read-rules'.
+FILE must be readable.  Return the rules in source order; no outer quote
+or styles wrapper is accepted.  No declaration value is evaluated."
+  (unless (file-readable-p file)
+    (user-error "ECSS file is not readable: %s" file))
+  (with-temp-buffer
+    (insert-file-contents file)
+    (ecss-read-rules (buffer-string))))
 
 (provide 'ecss-file)
 ;;; ecss-file.el ends here

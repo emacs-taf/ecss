@@ -64,3 +64,22 @@ Do not pass both `:stylesheet` and `:rules`. `:rules` accepts the rule list retu
 - `(ecss-computed-style-specified-p STYLE PROPERTY)` detects whether a longhand property has a cascade winner.
 
 No public schema or computed getter exposes a mutable registry or computed-style object. Mutating a returned value cannot change a computed style, schema set, or stylesheet.
+
+## Static rule data
+
+A `.ecss` file contains one ordered list, with no quote or `styles` wrapper:
+
+```elisp
+((".title" :color "#334155")
+ (".title.active" :font-weight bold))
+```
+
+Use `ecss-file-read` for files or `ecss-read-rules` for an editor's source string.
+Both read inert data, permit comments, and reject additional expressions. Write
+`nil` or `()` for an empty sheet; a blank file is incomplete input. Values are
+never evaluated. Ordinary Elisp callers quote a literal list or construct it with
+`list`, then use `ecss-validate-rules` to check the same grammar. Selectors use ECSS
+semantics; property validity remains with the receiving schema. Mount rules into
+an explicit stylesheet with its schema before computing values. Origins, layers
+and scope continue to use the stylesheet APIs; the basic file list does not
+replace those authoring interfaces.

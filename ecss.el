@@ -102,7 +102,22 @@
 ;;
 ;; Function: ecss-file-read (file)
 ;;;###autoload (autoload 'ecss-file-read "ecss" nil nil)
-;; Read and validate the rule list stored in FILE.
+;; Read FILE as one inert ordered rule list via `ecss-read-rules`.
+;; FILE must be readable. No outer quote or styles wrapper is accepted.
+;;
+;; Function: ecss-read-rules (source)
+;;;###autoload (autoload 'ecss-read-rules "ecss" nil nil)
+;; Read exactly one inert rule list from string SOURCE, allowing surrounding
+;; comments and whitespace. Empty input, wrappers, trailing expressions and
+;; malformed rules signal an error. Values are never evaluated or called.
+;; Property semantics require the consumer's schema after reading.
+;;
+;; Function: ecss-validate-rules (rules)
+;;;###autoload (autoload 'ecss-validate-rules "ecss" nil nil)
+;; Validate ordered (SELECTOR PROPERTY VALUE ...) RULES without mutation and
+;; return RULES. Selectors use ECSS strings; property identifiers are non-nil
+;; symbols. Empty rules/declarations are allowed. Validate property names and
+;; values against the consumer's schema separately. Values remain inert.
 ;;
 ;; Function: ecss-important (value)
 ;;;###autoload (autoload 'ecss-important "ecss" nil nil)
