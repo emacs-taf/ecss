@@ -1,6 +1,6 @@
-# ecss API Reference
+# ecss Manual
 
-[中文](api.zh.md)
+[中文](manual.zh-CN.md)
 
 ## Schemas
 

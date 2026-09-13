@@ -1,6 +1,6 @@
 # ecss 架构
 
-[English](architecture.en.md)
+[English](architecture.md)
 
 ## 定位
 

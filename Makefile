@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := check
+.NOTPARALLEL:
 # Makefile for the ecss library.
 
 EMACS ?= emacs
@@ -42,8 +44,17 @@ package-lint:
 diff-check:
 	git diff --check
 
-check: compile-all test checkdoc diff-check
-	$(MAKE) clean
+check: structure-check compile acceptance
 
 clean:
 	rm -f *.elc tests/*.elc
+
+.PHONY: structure-check setup-hooks
+structure-check:
+	python3 scripts/check-repository.py
+setup-hooks:
+	git config --local core.hooksPath .githooks
+
+.PHONY: acceptance
+acceptance:
+	python3 scripts/run-acceptance.py --emacs "$(EMACS)"

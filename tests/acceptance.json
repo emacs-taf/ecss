@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "load_path": [
+    ".",
+    "tests"
+  ],
+  "support": [],
+  "cases": [
+    {
+      "name": "ecss-cascade-test-schema-construction-is-atomic",
+      "file": "tests/ecss-cascade-tests.el",
+      "purpose": "cascade test schema construction is atomic"
+    },
+    {
+      "name": "ecss-cascade-test-rule-addition-is-atomic",
+      "file": "tests/ecss-cascade-tests.el",
+      "purpose": "cascade test rule addition is atomic"
+    },
+    {
+      "name": "ecss-cascade-test-specificity-source-order-and-selector-list",
+      "file": "tests/ecss-cascade-tests.el",
+      "purpose": "cascade test specificity source order and selector list"
+    },
+    {
+      "name": "ecss-cascade-test-inheritance-distinguishes-nil-from-absence",
+      "file": "tests/ecss-cascade-tests.el",
+      "purpose": "cascade test inheritance distinguishes nil from absence"
+    },
+    {
+      "name": "ecss-scope-nested-cascade-and-boundaries",
+      "file": "tests/ecss-scope-tests.el",
+      "purpose": "scope nested cascade and boundaries"
+    },
+    {
+      "name": "ecss-package-test-independent-schema-and-stylesheet-state",
+      "file": "tests/ecss-package-tests.el",
+      "purpose": "package test independent schema and stylesheet state"
+    }
+  ]
+}

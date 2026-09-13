@@ -1,6 +1,6 @@
-# ecss API 参考
+# ecss 使用手册
 
-[English](api.en.md)
+[English](manual.md)
 
 ## Schema
 

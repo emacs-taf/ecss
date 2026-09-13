@@ -1,14 +1,14 @@
 # ecss
 
-[English](README.en.md)
+[中文](README.zh-CN.md)
 
-`ecss` 是一个独立、纯计算、可扩展的 Emacs Lisp CSS 层叠引擎。它负责 selector、specificity、stylesheet、origin/importance、cascade layer、CSS-wide value、custom property、`var()`、inheritance、computed style 与 provenance；它不负责文本属性写入、响应式更新、Buffer 提交或 Box/Flex/Grid 布局。
+`ecss` is an independent, pure, extensible CSS cascade engine for Emacs Lisp. It owns selectors, specificity, stylesheets, origins and importance, cascade layers, CSS-wide values, custom properties, `var()`, inheritance, computed styles, and provenance. It does not own text-property writes, reactive updates, buffer publication, or Box/Flex/Grid layout.
 
-这个仓库是全新的小写 `ecss` 项目，不修改、不依赖、也不兼容转发到历史大写 `ECSS` 仓库。
+This repository is a new lowercase `ecss` project. It neither modifies nor depends on the historical uppercase `ECSS` repository, and it provides no forwarding compatibility layer to that project.
 
-## 为什么能独立使用
+## Independent use
 
-`ecss` 不内置 Ebox 属性，也不要求 TP。普通程序可以注册自己的属性 vocabulary，用内置 `ecss-subject` 或 adapter 暴露任意树节点，然后取得纯数据 computed style。调用者自行决定这些值用于文本、Widget、DOM、布局、日志还是其他领域。
+`ecss` does not embed Ebox properties and does not require TP. Any program can register its own property vocabulary, expose nodes through built-in `ecss-subject` values or an adapter, and receive a pure-data computed style. The caller decides whether those values drive text, widgets, a DOM, layout, diagnostics, or another domain.
 
 ```elisp
 (require 'ecss)
@@ -30,17 +30,17 @@
 ;; => "royalblue"
 ```
 
-## 核心边界
+## Core boundary
 
-- `ecss-selector.el`：selector AST/parser/matcher/specificity 与通用 subject adapter。
-- `ecss-cascade.el`：不可变 package schema、surface schema set、stylesheet、完整 winner 顺序、继承、变量解析和 provenance。
-- `ecss.el`：公开 package facade；加载时没有行为副作用。
-- package schema 与组合后的 schema set 不可变；stylesheet 只由显式 authoring API 修改；`ecss-compute-style` 不修改输入对象或当前 Buffer。
-- 普通 function value 永远是普通值。只有调用者显式传入 `:value-resolver` 时，ECSS 才调用该 resolver；ECSS 自己不认识 TP binding、Ebox node 或任何业务 value-source 类型。
+- `ecss-selector.el` owns the selector AST, parser, matcher, specificity, and generic subject adapter.
+- `ecss-cascade.el` owns immutable package schemas, surface schema sets, stylesheets, complete winner ordering, inheritance, variable resolution, and provenance.
+- `ecss.el` is the public package facade and has no behavioral load side effects.
+- Package schemas and composed schema sets are immutable. Stylesheets change only through explicit authoring APIs. `ecss-compute-style` mutates neither its inputs nor the current buffer.
+- An ordinary function value always remains a value. ECSS calls code only through an explicitly supplied `:value-resolver`; ECSS itself knows nothing about TP bindings, Ebox nodes, or consumer-specific value-source types.
 
-详细设计见 [架构](docs/architecture.zh.md) 与 [API 参考](docs/api.zh.md)。
+See [Architecture](docs/architecture.md) and [API Reference](docs/manual.md) for the complete contract.
 
-## 验证
+## Verification
 
 ```sh
 make test EMACS=/Applications/Emacs.app/Contents/MacOS/Emacs
@@ -50,6 +50,14 @@ make package-lint EMACS=/Applications/Emacs.app/Contents/MacOS/Emacs
 make diff-check
 ```
 
-`package-lint` 是开发期外部工具；如果它不在 `emacs -Q` 的 load-path 中，通过 `PACKAGE_LINT_LOAD_EXTRA='-L /path/to/package-lint'` 显式提供。它不是 `ecss` 的运行时依赖。
+`package-lint` is an external development tool. If it is absent from the `emacs -Q` load path, provide it explicitly with `PACKAGE_LINT_LOAD_EXTRA='-L /path/to/package-lint'`. It is not an `ecss` runtime dependency.
 
-最低 Emacs 版本是 28.1。当前 package 版本是 0.1.0。
+The minimum Emacs version is 28.1. The current package version is 0.1.0.
+
+## Development
+
+After cloning, run `make setup-hooks`. Before submitting a change, run `make check`; `make structure-check` is the fast organization gate. The shared rules are in [AGENTS.md](AGENTS.md).
+
+[docs/manual.md](docs/manual.md) · [docs/architecture.md](docs/architecture.md) · [CHANGELOG.md](CHANGELOG.md)
+
+`make check` runs structure checks, compilation and the public acceptance scenarios listed in [tests/acceptance.json](tests/acceptance.json). `make test` runs the broader regression suite; GUI and performance checks remain explicit targets. The acceptance inventory is selected by user-visible contracts, not by current pass/fail status.

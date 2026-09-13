@@ -1,6 +1,6 @@
 # ecss Architecture
 
-[中文](architecture.zh.md)
+[中文](architecture.zh-CN.md)
 
 ## Position
 
