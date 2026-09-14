@@ -246,6 +246,21 @@
   (should-error (ecss-selector-subject-local-p '(:unknown value))
                 :type 'ecss-invalid-selector))
 
+(ert-deftest ecss-selector-test-locality-requires-stable-scope-context ()
+  "Scope anchors need caller proof; structural dependencies remain nonlocal."
+  (dolist (selector '("&" ":scope" "&.active" ":scope:not(.disabled)"
+                      ":is(&, .active)" ":where(:scope, .active)"))
+    (should-not (ecss-selector-subject-local-p selector))
+    (should (ecss-selector-subject-local-p selector t))
+    (should (ecss-selector-subject-local-p (ecss-selector-parse selector) t)))
+  (dolist (selector '("& > .active" ":scope .active" "& + .active"
+                      "&:has(.active)" ":is(&, :empty)" ":nth-child(2)"
+                      ":first-child" ":last-of-type" ":root"))
+    (should-not (ecss-selector-subject-local-p selector t)))
+  (should-not (ecss-selector-subject-local-p '(:anchor) t))
+  (should-error (ecss-selector-subject-local-p '(:unknown value) t)
+                :type 'ecss-invalid-selector))
+
 (ert-deftest ecss-selector-test-comments-escapes-and-quoted-attributes ()
   (let ((subject (ecss-subject-create
                   :type "div" :classes '("card" "a:b")

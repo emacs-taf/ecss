@@ -29,6 +29,13 @@ Custom property 不需要 schema，使用 `--name` symbol。`initial` 在 packag
 
 Parser 支持 selector list、compound selector、type/id/class、attribute presence/equality/token/language/prefix/suffix/substring、state pseudo、`:is()`、`:where()`、`:not()`、`:has()`，以及 descendant/child/adjacent/general-sibling combinator。`:has()` 使用相对 selector list，支持 `:has(> child)`、`:has(+ sibling)`、`:has(~ sibling)` 及其后续复合关系。未知 functional pseudo 被保存为 state token，由 adapter 的 `states` 决定是否匹配。
 
+增量宿主可以用 `ecss-selector-subject-local-p` 分类选择器，再决定能否复用匹配。
+默认情况下，作用域锚点和树关系不属于局部依赖。只有宿主已证明 subject 相对于
+同一个作用域根的关系不变，才能传入可选的作用域根稳定参数，允许 `&` 和
+`:scope`。例如 `(ecss-selector-subject-local-p "&.active" t)` 返回非 nil，
+而 `"& > .active"` 仍返回 nil。复用计算样式前，宿主还必须分别检查本地元数据、
+规则成员资格、层叠输入和继承值。详见[公共接口契约](../ecss.el)。
+
 ## Stylesheet
 
 - `(ecss-stylesheet-create)` 创建隔离 stylesheet。

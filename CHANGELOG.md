@@ -6,6 +6,10 @@ All notable changes to `ecss` are documented here.
 
 ### Changed
 
+- Selector locality classification accepts an optional proof of stable scope-root
+  relationships, allowing hosts to reuse local anchored matches without treating
+  structural selectors as local.
+
 - Scoped style computation reuses mounted rule snapshots instead of copying
   every rule for each subject. Value resolvers receive detached mutable values
   so callback edits cannot alter subsequent stylesheet computations.

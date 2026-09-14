@@ -29,6 +29,15 @@ Custom properties need no schema and use `--name` symbols. `initial` is normaliz
 
 The parser supports selector lists, compound selectors, type/id/class, attribute presence/equality/token/language/prefix/suffix/substring matching, state pseudos, `:is()`, `:where()`, `:not()`, `:has()`, and descendant/child/adjacent/general-sibling combinators. `:has()` accepts relative selector lists, including `:has(> child)`, `:has(+ sibling)`, `:has(~ sibling)`, and chained relationships. An unknown functional pseudo is preserved as a state token; the adapter's `states` result determines whether it matches.
 
+Incremental hosts can use `ecss-selector-subject-local-p` to classify selectors
+before reusing a match. By default, scope anchors and tree relationships are
+not local. The optional scope-root stability argument permits `&` and `:scope`
+only when the host has proved the subject's relationship to the same scope root
+unchanged. For example, `(ecss-selector-subject-local-p "&.active" t)` returns
+non-nil; `"& > .active"` still returns nil. The host must separately check local
+metadata, rule membership, cascade inputs and inherited values before reusing
+computed style. See the [public API contract](../ecss.el).
+
 ## Stylesheets
 
 - `(ecss-stylesheet-create)` creates an isolated stylesheet.

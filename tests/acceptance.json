@@ -403,6 +403,11 @@
       "name": "ecss-scope-resolver-cannot-mutate-mounted-declarations",
       "file": "tests/ecss-scope-tests.el",
       "purpose": "Resolver and result mutations leave mounted stylesheet values stable across repeated computations."
+    },
+    {
+      "name": "ecss-selector-test-locality-requires-stable-scope-context",
+      "file": "tests/ecss-selector-tests.el",
+      "purpose": "Scope anchors need caller proof; structural dependencies remain nonlocal."
     }
   ]
 }

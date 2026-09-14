@@ -593,29 +593,34 @@ selectors and quoted strings may contain the word without starting the split."
   (let ((ast (if (stringp selector) (ecss-selector-parse selector) selector)))
     (ecss--copy-boundary-data (ecss--validate-selector ast))))
 
-(defun ecss--selector-subject-local-p (selector)
-  "Return non-nil when validated SELECTOR reads only its subject."
+(defun ecss--selector-subject-local-p (selector scope-root-stable-p)
+  "Return whether SELECTOR is local with SCOPE-ROOT-STABLE-P context."
   (pcase (car selector)
     ((or :universal :type :id :class :attr) t)
+    (:scope-root (and scope-root-stable-p t))
     (:state
      (let ((state (nth 1 selector)))
        (not (if (consp state)
                 (member (car state) ecss--positional-pseudos)
               (or (member state ecss--structural-pseudos)
-                  (equal state "scope"))))))
+                  (and (equal state "scope") (not scope-root-stable-p)))))))
     ((or :and :list :is :where :not)
-     (cl-every #'ecss--selector-subject-local-p (cdr selector)))
+     (cl-every (lambda (branch)
+                 (ecss--selector-subject-local-p branch scope-root-stable-p))
+               (cdr selector)))
     (_ nil)))
 
 ;;;###autoload
-(defun ecss-selector-subject-local-p (selector)
+(defun ecss-selector-subject-local-p (selector &optional scope-root-stable-p)
   "Return non-nil when SELECTOR depends only on the matched subject.
-
-Subject-local selectors may inspect type, id, classes, attributes, states,
-and local logical combinations such as `:is' and `:not'.  Selectors involving
-ancestors, children, or siblings return nil.  Invalid selectors signal
-`ecss-invalid-selector'."
-  (ecss--selector-subject-local-p (ecss-selector-normalize selector)))
+Subject-local selectors inspect type, id, classes, attributes, states and
+local logical combinations.  Ancestor, child and sibling relationships
+return nil.  Invalid selectors signal `ecss-invalid-selector'.
+With SCOPE-ROOT-STABLE-P, also allow `&' and `:scope': the caller must prove
+that the matched subject's relationship to the same scope root is unchanged.
+This does not establish rule membership, cascade or inheritance stability."
+  (ecss--selector-subject-local-p
+   (ecss-selector-normalize selector) scope-root-stable-p))
 
 (defun ecss--subject-attribute-cell (subject adapter name)
   "Return SUBJECT attribute NAME through ADAPTER."

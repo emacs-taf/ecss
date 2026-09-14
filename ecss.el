@@ -243,14 +243,14 @@
 ;;;###autoload (autoload 'ecss-selector-specificity "ecss" nil nil)
 ;; Return SELECTOR specificity as an (ID CLASS TYPE) list.
 ;;
-;; Function: ecss-selector-subject-local-p (selector)
+;; Function: ecss-selector-subject-local-p (selector &optional scope-root-stable-p)
 ;;;###autoload (autoload 'ecss-selector-subject-local-p "ecss" nil nil)
 ;; Return non-nil when SELECTOR depends only on the matched subject.
-;;
-;; Subject-local selectors may inspect type, id, classes, attributes, states,
-;; and local logical combinations such as `:is' and `:not'.  Selectors involving
-;; ancestors, children, or siblings return nil.  Invalid selectors signal
-;; `ecss-invalid-selector'.
+;; Type, id, classes, attributes, states and local logical combinations qualify;
+;; ancestor, child and sibling relationships do not.  Invalid selectors signal
+;; `ecss-invalid-selector'.  With SCOPE-ROOT-STABLE-P, also allow `&' and `:scope':
+;; the caller must prove the subject's relationship to the same scope root is
+;; unchanged.  This does not establish membership, cascade or inheritance stability.
 ;;
 ;; Function: ecss-stylesheet-add-rule (stylesheet schemas selector declarations &key (origin 'author) layer scope)
 ;;;###autoload (autoload 'ecss-stylesheet-add-rule "ecss" nil nil)
