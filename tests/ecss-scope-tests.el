@@ -215,5 +215,32 @@
     (should-error (ecss-scope-create root sheet :subjects '(bad . tail))
                   :type 'wrong-type-argument)))
 
+(ert-deftest ecss-scope-resolver-cannot-mutate-mounted-declarations ()
+  "Resolving mutable values preserves later computations of the same scope."
+  (let* ((schemas (ecss-schema-set-compose
+                   (ecss-schema-package-create
+                    'test '((:id test/color :initial "none" :validator stringp
+                             :impacts (paint))))))
+         (root (ecss-subject-create))
+         (sheet (ecss-stylesheet-create)))
+    (ecss-stylesheet-add-rule sheet schemas "&" '(test/color "before"))
+    (let ((scopes (list (ecss-scope-create root sheet))))
+      (dotimes (_ 3)
+        (let ((changed
+               (ecss-compute-style
+                schemas root :scopes scopes :provenance t
+                :value-resolver
+                (lambda (value _property _subject)
+                  (aset value 0 ?B)
+                  value))))
+          (should (equal "Before"
+                         (ecss-computed-style-value changed 'test/color)))
+          (let ((value (ecss-computed-style-value changed 'test/color)))
+            (aset value 1 ?X)))
+        (should (equal "before"
+                       (ecss-computed-style-value
+                        (ecss-compute-style schemas root :scopes scopes)
+                        'test/color)))))))
+
 (provide 'ecss-scope-tests)
 ;;; ecss-scope-tests.el ends here

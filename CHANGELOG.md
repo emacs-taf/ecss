@@ -6,6 +6,10 @@ All notable changes to `ecss` are documented here.
 
 ### Changed
 
+- Scoped style computation reuses mounted rule snapshots instead of copying
+  every rule for each subject. Value resolvers receive detached mutable values
+  so callback edits cannot alter subsequent stylesheet computations.
+
 - Mounted scopes accept `:subjects` to snapshot explicit rule targets, including
   caller-authored content below another component. Structural matching and
   inheritance retain the host tree's semantics. The optional parent argument to

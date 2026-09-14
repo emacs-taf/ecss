@@ -39,6 +39,9 @@ remain those of the host adapter within the mounted root. This separates author
 ownership from physical parentage without duplicating cascade logic or suppressing
 inherited values. An absent membership constraint covers the subtree; an empty set
 matches no targets. Sets use identity lookup and do not copy host subjects.
+Candidate collection reads these owned rule snapshots directly. Defensive
+copies belong at public queries and callback boundaries, so computing each
+subject does not copy all rules from every mounted scope.
 
 ## Cascade order
 

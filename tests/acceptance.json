@@ -398,6 +398,11 @@
       "name": "ecss-scope-target-membership-does-not-block-inheritance",
       "file": "tests/ecss-scope-tests.el",
       "purpose": "Restrict direct rule targets without suppressing inheritance; validate empty and invalid membership."
+    },
+    {
+      "name": "ecss-scope-resolver-cannot-mutate-mounted-declarations",
+      "file": "tests/ecss-scope-tests.el",
+      "purpose": "Resolver and result mutations leave mounted stylesheet values stable across repeated computations."
     }
   ]
 }

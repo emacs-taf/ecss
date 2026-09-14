@@ -29,7 +29,8 @@
 ;; PARENT-STYLE may be another computed style or a values plist.  ADAPTER exposes
 ;; caller-owned subjects.  PROVENANCE retains winner facts.  VALUE-RESOLVER, when
 ;; non-nil, is the only function allowed to evaluate caller-owned value sources;
-;;   it receives VALUE, PROPERTY, and SUBJECT.
+;; it receives VALUE, PROPERTY, and SUBJECT. Mutable VALUE data is detached
+;; from the declaration; functions retain their identity.
 ;;
 ;; Function: ecss-computed-style-active-properties (style)
 ;;;###autoload (autoload 'ecss-computed-style-active-properties "ecss" nil nil)

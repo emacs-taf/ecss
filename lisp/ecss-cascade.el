@@ -762,7 +762,9 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
    ;; order here so a later mount wins a complete tie across sheets, too.
    (let ((offset (1+ (ecss--max-source-order rules))))
      (cl-loop for scope in scopes
-              for scoped-rules = (ecss-stylesheet-rules
+              ;; The mounted sheet already owns a snapshot.  Public rule
+              ;; queries copy it for callers, not for internal matching.
+              for scoped-rules = (ecss--stylesheet-rules
                                   (ecss-scope-stylesheet scope))
               append
               (prog1
@@ -878,7 +880,8 @@ SCHEMAS validates inline declarations and ADAPTER exposes SUBJECT."
 (defun ecss--resolve-source (value property subject resolver)
   "Resolve VALUE for PROPERTY and SUBJECT only through explicit RESOLVER."
   (if resolver
-      (ecss--copy-boundary-data (funcall resolver value property subject))
+      (ecss--copy-boundary-data
+       (funcall resolver (ecss--copy-boundary-data value) property subject))
     value))
 
 (defun ecss--parent-values (parent-style)
@@ -1259,7 +1262,8 @@ STYLESHEET or RULES supplies validated rules.  DECLARATIONS are inline.
 PARENT-STYLE may be another computed style or a values plist.  ADAPTER exposes
 caller-owned subjects.  PROVENANCE retains winner facts.  VALUE-RESOLVER, when
 non-nil, is the only function allowed to evaluate caller-owned value sources;
-  it receives VALUE, PROPERTY, and SUBJECT."
+it receives VALUE, PROPERTY, and SUBJECT.  Mutable VALUE data is detached
+from the declaration; functions retain their identity."
   (ecss--schema-set-check schemas)
   (let ((adapter (or adapter ecss-default-subject-adapter)))
     (unless (ecss-subject-adapter-p adapter)
