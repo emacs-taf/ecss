@@ -9,8 +9,7 @@
     "../etaf",
     "../etaf-db",
     "../etaf-playground",
-    "../etaf-ui",
-    "../tp"
+    "../etaf-ui"
   ],
   "support": [],
   "cases": [

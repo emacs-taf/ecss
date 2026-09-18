@@ -58,7 +58,7 @@ acceptance:
 .PHONY: api-check
 api-check:
 	$(EMACS) -Q --batch -L . $(API_PROVIDER_PATH) --eval '(setq load-prefer-newer t)' -l scripts/check-api.el
-API_PROVIDER_PATH = -L ../tp -L ../ekp -L ../ebox -L ../etaf -L ../etaf-ui -L ../etaf-db -L ../ebox-playground -L ../etaf-playground
+API_PROVIDER_PATH = -L ../ekp -L ../ebox -L ../etaf -L ../etaf-ui -L ../etaf-db -L ../ebox-playground -L ../etaf-playground
 
 .PHONY: test
 test: acceptance
