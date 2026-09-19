@@ -11,7 +11,7 @@
 
 ## 为什么能独立使用
 
-`ecss` 不内置 Ebox 属性，也不要求 TP。普通程序可以注册自己的属性 vocabulary，用内置 `ecss-subject` 或 adapter 暴露任意树节点，然后取得纯数据 computed style。调用者自行决定这些值用于文本、Widget、DOM、布局、日志还是其他领域。
+`ecss` 不内置 Ebox 属性，也不依赖渲染运行时。普通程序可以注册自己的属性 vocabulary，用内置 `ecss-subject` 或 adapter 暴露任意树节点，然后取得纯数据 computed style。调用者自行决定这些值用于文本、Widget、DOM、布局、日志还是其他领域。
 
 ```elisp
 (require 'ecss)
@@ -39,7 +39,7 @@
 - `ecss-cascade.el`：不可变 package schema、surface schema set、stylesheet、完整 winner 顺序、继承、变量解析和 provenance。
 - `ecss.el`：公开 package facade；加载时没有行为副作用。
 - package schema 与组合后的 schema set 不可变；stylesheet 只由显式 authoring API 修改；`ecss-compute-style` 不修改输入对象或当前 Buffer。
-- 普通 function value 永远是普通值。只有调用者显式传入 `:value-resolver` 时，ECSS 才调用该 resolver；ECSS 自己不认识 TP binding、Ebox node 或任何业务 value-source 类型。
+- 普通 function value 永远是普通值。只有调用者显式传入 `:value-resolver` 时，ECSS 才调用该 resolver；ECSS 自己不认识响应式 binding、Ebox node 或任何业务 value-source 类型。
 
 详细设计见 [架构](docs/architecture.zh-CN.md) 与 [API 参考](docs/manual.zh-CN.md)。
 

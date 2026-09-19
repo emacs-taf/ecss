@@ -19,7 +19,7 @@ consumer schemas + subject adapter + stylesheet + parent style
     computed style + specified properties + provenance + diagnostics
 ```
 
-`ecss` does not know how computed values are displayed. TP may convert final text-property contributions into retained surface patches. Ebox may interpret final Box/Flex/Grid properties as measurement, layout, and painting consequences. Ordinary callers may use `ecss` without either package.
+`ecss` does not know how computed values are displayed. Ebox consumes them for measurement, Box/Flex/Grid layout, painting, and its own retained buffer publication. Other callers can use `ecss` without Ebox or any buffer.
 
 ## Package schemas and explicit surfaces
 
@@ -57,12 +57,12 @@ ECSS never calls an ordinary function stored in a property and defines no reacti
 
 Custom properties use `--name` symbols. Their raw values first pass through ordinary cascade, inherit from the parent computed style by default, and then resolve through `ecss-var`. References may occur inside lists or vectors. Missing values and cycles can use fallback at the reference site. A cycle does not destroy the whole computed style: it creates a deterministic diagnostic and makes the affected value invalid at computed-value time.
 
-## Three-package boundary
+## Package boundary
 
 ```text
 ecss: selector / stylesheet / cascade / computed values
-tp:   text-property contributions / reactive runtime / diff / transaction / buffer commit
 ebox: box semantics / measurement / flex-grid layout / painting / dirty ownership
+      display bindings / text-property projection / retained publication / transactions
 ```
 
-Ebox may consume both `ecss` and TP. `ecss` and TP remain independently usable and do not depend on each other. The `ecss` public API contains no TP object, binding, or mount; no Ebox node; and no marker, patch, or buffer mutation.
+Ebox depends on `ecss`; `ecss` remains independently usable and does not depend on Ebox. The `ecss` public API defines no Ebox node, display binding, mount, marker, patch, or buffer mutation. Each consumer owns its rendering and publication behavior.

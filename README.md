@@ -12,7 +12,7 @@ This repository is a new lowercase `ecss` project. It neither modifies nor depen
 
 ## Independent use
 
-`ecss` does not embed Ebox properties and does not require TP. Any program can register its own property vocabulary, expose nodes through built-in `ecss-subject` values or an adapter, and receive a pure-data computed style. The caller decides whether those values drive text, widgets, a DOM, layout, diagnostics, or another domain.
+`ecss` does not embed Ebox properties or depend on a rendering runtime. Any program can register its own property vocabulary, expose nodes through built-in `ecss-subject` values or an adapter, and receive a pure-data computed style. The caller decides whether those values drive text, widgets, a DOM, layout, diagnostics, or another domain.
 
 ```elisp
 (require 'ecss)
@@ -40,7 +40,7 @@ This repository is a new lowercase `ecss` project. It neither modifies nor depen
 - `ecss-cascade.el` owns immutable package schemas, surface schema sets, stylesheets, complete winner ordering, inheritance, variable resolution, and provenance.
 - `ecss.el` is the public package facade and has no behavioral load side effects.
 - Package schemas and composed schema sets are immutable. Stylesheets change only through explicit authoring APIs. `ecss-compute-style` mutates neither its inputs nor the current buffer.
-- An ordinary function value always remains a value. ECSS calls code only through an explicitly supplied `:value-resolver`; ECSS itself knows nothing about TP bindings, Ebox nodes, or consumer-specific value-source types.
+- An ordinary function value always remains a value. ECSS calls code only through an explicitly supplied `:value-resolver`; ECSS itself knows nothing about reactive bindings, Ebox nodes, or consumer-specific value-source types.
 
 See [Architecture](docs/architecture.md) and [API Reference](docs/manual.md) for the complete contract.
 

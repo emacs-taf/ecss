@@ -7,7 +7,7 @@
 
 ;; This module owns property schemas, stylesheets, cascade precedence,
 ;; inheritance, CSS-wide values, custom properties, and provenance.  All
-;; computation is independent of buffers, text properties, TP, and Ebox.
+;; computation is independent of buffers, text properties, and Ebox.
 
 ;;; Code:
 

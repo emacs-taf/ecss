@@ -19,7 +19,7 @@ consumer schemas + subject adapter + stylesheet + parent style
     computed style + specified properties + provenance + diagnostics
 ```
 
-`ecss` 不知道 computed values 最终如何显示。TP 可以把最终文本属性贡献转换成 retained surface patch；Ebox 可以把最终 Box/Flex/Grid 属性解释成 measurement、layout 与 painting 后果；普通调用者也可以完全不用 TP/Ebox。
+`ecss` 不知道 computed values 最终如何显示。Ebox 将这些值用于 measurement、Box/Flex/Grid layout、painting 以及自身的保留式 Buffer 发布。其他调用者无需 Ebox 或任何 Buffer 即可使用 `ecss`。
 
 ## Package schema 与显式 surface
 
@@ -54,12 +54,12 @@ ECSS 不自动调用属性里的 function，也不定义自己的 reactive/compu
 
 Custom properties 使用 `--name` symbol，通过普通 cascade 选出 raw value，默认从 parent computed style 继承，再用 `ecss-var` 解析。引用可以嵌套在 list/vector 中；缺失值与 cycle 可使用引用处 fallback。cycle 不破坏整个 computed style，而产生 deterministic diagnostic，并把受影响 value 标记为 invalid-at-computed-value。
 
-## 三包边界
+## 包边界
 
 ```text
 ecss: selector / stylesheet / cascade / computed values
-tp:   text-property contributions / reactive runtime / diff / transaction / buffer commit
 ebox: box semantics / measurement / flex-grid layout / painting / dirty ownership
+      display bindings / text-property projection / retained publication / transactions
 ```
 
-允许的依赖方向是 Ebox 消费 `ecss` 与 TP；`ecss` 和 TP 可以彼此完全独立使用。`ecss` public API 不出现 TP object/binding/mount、Ebox node、marker、patch 或 buffer mutation。
+Ebox 依赖 `ecss`；`ecss` 可独立使用，不依赖 Ebox。`ecss` public API 不定义 Ebox node、display binding、mount、marker、patch 或 Buffer mutation。每个 consumer 自行负责渲染与发布行为。
