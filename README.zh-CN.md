@@ -41,7 +41,7 @@
 - package schema 与组合后的 schema set 不可变；stylesheet 只由显式 authoring API 修改；`ecss-compute-style` 不修改输入对象或当前 Buffer。
 - 普通 function value 永远是普通值。只有调用者显式传入 `:value-resolver` 时，ECSS 才调用该 resolver；ECSS 自己不认识响应式 binding、Ebox node 或任何业务 value-source 类型。
 
-详细设计见 [架构](docs/architecture.zh-CN.md) 与 [API 参考](docs/manual.zh-CN.md)。
+详细设计见 [架构](docs/architecture.zh-CN.md) 与 ETAF 参考手册的 [ECSS 章节](https://gitea.gklazycat.heiyu.space/emacs-taf/etaf-manual/src/branch/main/book/zh-CN/ecss-schema-packages.md)。
 
 ## 验证
 
@@ -61,6 +61,6 @@ make diff-check
 
 克隆后运行 `make setup-hooks`。提交变更前运行 `make check`；`make structure-check` 用于快速检查目录、命名和引用。
 
-[docs/manual.zh-CN.md](docs/manual.zh-CN.md) · [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md) · [CHANGELOG.md](CHANGELOG.md)
+[参考手册](https://gitea.gklazycat.heiyu.space/emacs-taf/etaf-manual/src/branch/main/book/zh-CN/ecss-schema-packages.md) · [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md) · [CHANGELOG.md](CHANGELOG.md)
 
 `make check` 运行规范检查、编译及 [tests/acceptance.json](tests/acceptance.json) 中的公共验收场景。`make test` 运行同一套公共 API 测试。清单涵盖全部维护的 Lisp 测试。GUI 与性能验收使用独立入口。
