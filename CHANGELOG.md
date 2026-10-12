@@ -6,7 +6,7 @@ All notable changes to `ecss` are documented here.
 
 ### Removed
 
-- The package manual `docs/manual.md` is replaced by the [ECSS chapters](https://gitea.gklazycat.heiyu.space/emacs-taf/etaf-manual/src/branch/main/book/en/ecss-schema-packages.md) of the ETAF Reference Manual, which the README and the package Commentary link; `docs/architecture.md` remains the maintainer contract.
+- The package manual `docs/manual.md` is replaced by the [ECSS chapters](https://etaf.top/ecss-schema-packages/) of the ETAF Reference Manual, which the README and the package Commentary link; `docs/architecture.md` remains the maintainer contract.
 
 ### Changed
 

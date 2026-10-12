@@ -42,7 +42,7 @@ This repository is a new lowercase `ecss` project. It neither modifies nor depen
 - Package schemas and composed schema sets are immutable. Stylesheets change only through explicit authoring APIs. `ecss-compute-style` mutates neither its inputs nor the current buffer.
 - An ordinary function value always remains a value. ECSS calls code only through an explicitly supplied `:value-resolver`; ECSS itself knows nothing about reactive bindings, Ebox nodes, or consumer-specific value-source types.
 
-See [Architecture](docs/architecture.md) and the [ECSS chapters](https://gitea.gklazycat.heiyu.space/emacs-taf/etaf-manual/src/branch/main/book/en/ecss-schema-packages.md) of the ETAF Reference Manual for the complete contract.
+See [Architecture](docs/architecture.md) and the [ECSS chapters](https://etaf.top/ecss-schema-packages/) of the ETAF Reference Manual for the complete contract.
 
 ## Verification
 
@@ -62,7 +62,7 @@ The minimum Emacs version is 28.1. The current package version is 0.1.0.
 
 After cloning, run `make setup-hooks`. Before submitting a change, run `make check`; `make structure-check` is the fast organization gate.
 
-[Reference manual](https://gitea.gklazycat.heiyu.space/emacs-taf/etaf-manual/src/branch/main/book/en/ecss-schema-packages.md) · [docs/architecture.md](docs/architecture.md) · [CHANGELOG.md](CHANGELOG.md)
+[Reference manual](https://etaf.top/ecss-schema-packages/) · [docs/architecture.md](docs/architecture.md) · [CHANGELOG.md](CHANGELOG.md)
 
 `make check` runs structure checks, compilation and the public acceptance scenarios listed in [tests/acceptance.json](tests/acceptance.json). `make test` runs the same public API suite. The inventory covers every maintained Lisp test. GUI and performance checks use separate targets.
 
