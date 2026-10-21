@@ -12,15 +12,19 @@
 
 ;;; Commentary:
 
+;; A CSS engine for Emacs Lisp: parse stylesheets, match selectors,
+;; cascade declarations by origin, importance and layer, and resolve
+;; computed values for a subject tree.
+;;
 ;; Public API
 ;;
 ;; Load this package with (require 'ecss) after adding the repository
 ;; root to load-path.
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
-;; names without a double hyphen. Do not require files below lisp/ from consumers.
+;; names without a double hyphen.  Do not require files below lisp/ from consumers.
 ;; This Commentary is the authoritative export list; implementations and precise
-;; docstrings remain beside their definitions. The ETAF Reference Manual contains workflows.
+;; docstrings remain beside their definitions.  The ETAF Reference Manual contains workflows.
 ;;
 ;; Function: ecss-compute-style (schemas subject &key stylesheet rules declarations parent-style adapter provenance value-resolver scopes)
 ;;;###autoload (autoload 'ecss-compute-style "ecss" nil nil)
