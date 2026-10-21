@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2026 Geekinney
 
-;; Author: Geekinney <kinneyzhang666@gmail.com>
+;; Author: Geekinney <vhkdzszh@gmail.com>
 ;; URL: https://github.com/geekinney/ecss
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "28.1"))
